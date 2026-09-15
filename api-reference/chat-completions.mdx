@@ -1,7 +1,7 @@
 ---
-title: 'Chat Completions — OpenAI-Compatible RAG Endpoint'
+title: 'Chat Completions — OpenAI-Compatible Ragen RAG API'
 sidebarTitle: 'Chat Completions'
-description: 'POST /v1/chat/completions — OpenAI-compatible endpoint that runs the full Ragen RAG pipeline with multi-turn support.'
+description: 'POST /v1/chat/completions — OpenAI-compatible endpoint that runs the full Ragen RAG pipeline with multi-turn conversation support.'
 ---
 
 The Chat Completions endpoint follows the OpenAI wire format exactly, which means any OpenAI-compatible client — the Python `openai` library, `openai-node`, LangChain, LlamaIndex — works with Ragen by pointing `base_url` at your instance. You get the full Ragen RAG pipeline (vector retrieval → reranking → generation) behind a familiar interface, plus multi-turn conversations, per-request model and temperature overrides, and opt-in usage tracking in streams.
@@ -232,7 +232,7 @@ The empty `choices: []` signals that this chunk carries usage data only.
   </Tab>
   <Tab title="curl">
     ```bash
-    curl -X POST $RAGEN_BASE_URL/v1/chat/completions \
+    curl -X POST $RAGEN_BASE_URL/chat/completions \
       -H "Authorization: Bearer YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
@@ -272,7 +272,7 @@ Errors use the OpenAI error envelope, so existing SDK error-handling continues t
 
 ## Rate limits
 
-Chat Completions run a full RAG pipeline (vector search + rerank + LLM call), placing them on the expensive tier:
+Chat Completions run a full RAG pipeline (vector search + rerank + LLM call):
 
 | Scope | Limit |
 |---|---|

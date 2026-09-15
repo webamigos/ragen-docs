@@ -1,7 +1,7 @@
 ---
-title: 'Chat API — Simple Question and Answer Endpoint'
+title: 'Chat API — Single-Turn RAG Question and Answer Endpoint'
 sidebarTitle: 'Chat'
-description: 'POST /v1/chat — Send a message to a Ragen assistant and receive a RAG-grounded answer. Supports streaming via SSE.'
+description: 'POST /v1/chat — Send a single message to a Ragen assistant and get a RAG-grounded answer back. Supports streaming via Server-Sent Events.'
 ---
 
 The Chat endpoint is the simplest way to query your Ragen knowledge base. Send a single message, get a single answer — Ragen handles retrieval, reranking, and generation behind the scenes. If you need multi-turn conversation, model selection, or token usage tracking, use [Chat Completions](/api-reference/chat-completions) instead.
@@ -122,7 +122,7 @@ The stream always ends with `data: [DONE]`. Display `reasoning` chunks separatel
   <Tab title="curl">
     ```bash
     # Non-streaming
-    curl -X POST $RAGEN_BASE_URL/v1/chat \
+    curl -X POST $RAGEN_BASE_URL/chat \
       -H "Authorization: Bearer YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
@@ -134,7 +134,7 @@ The stream always ends with `data: [DONE]`. Display `reasoning` chunks separatel
 
     ```bash
     # Streaming
-    curl -X POST $RAGEN_BASE_URL/v1/chat \
+    curl -X POST $RAGEN_BASE_URL/chat \
       -H "Authorization: Bearer YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       --no-buffer \
@@ -148,7 +148,7 @@ The stream always ends with `data: [DONE]`. Display `reasoning` chunks separatel
   <Tab title="TypeScript (fetch)">
     ```typescript
     // Non-streaming
-    const response = await fetch(`${process.env.RAGEN_BASE_URL}/v1/chat`, {
+    const response = await fetch(`${process.env.RAGEN_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.RAGEN_API_KEY}`,
@@ -166,7 +166,7 @@ The stream always ends with `data: [DONE]`. Display `reasoning` chunks separatel
 
     ```typescript
     // Streaming
-    const response = await fetch(`${process.env.RAGEN_BASE_URL}/v1/chat`, {
+    const response = await fetch(`${process.env.RAGEN_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.RAGEN_API_KEY}`,

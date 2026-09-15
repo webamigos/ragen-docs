@@ -47,14 +47,13 @@ This page answers the questions that come up most often when getting started wit
   </Accordion>
 
   <Accordion title="How do I update Ragen?">
-    Pull the latest code and replay the migrations:
+    Pull the latest code and follow the upgrade steps in the release notes:
 
     ```bash
     git pull
-    npx prisma migrate deploy
     ```
 
-    Then restart your services. If you are running the apps via Docker, rebuild the images before restarting. Check the [GitHub releases](https://github.com/webamigos/RagenAI/releases) page for any migration notes before upgrading.
+    Then rebuild and restart your services. If you are running the stack via Docker Compose, rebuild the images before restarting containers. Check the [GitHub releases](https://github.com/webamigos/RagenAI/releases) page for any migration notes or additional steps required before upgrading.
   </Accordion>
 </AccordionGroup>
 
@@ -136,7 +135,7 @@ This page answers the questions that come up most often when getting started wit
     - **Document parsing can fall back externally.** `DOCUMENT_PARSER=docling` parses on your hardware, but if Docling fails the worker falls back to a loader that sends PDFs to an external model. Set `DOCLING_STRICT=1` to fail ingest instead.
     - **Content moderation goes directly outward.** If `MODERATION_ENABLED` is on, it calls OpenAI's moderation endpoint directly — it does not go through LiteLLM. Leave moderation off on an isolated install.
 
-    See [Security and Privacy](/security) for the full breakdown.
+    See [Security and Privacy](/security/overview) for the full breakdown.
   </Accordion>
 
   <Accordion title="Is conversation data encrypted?">
@@ -148,7 +147,7 @@ This page answers the questions that come up most often when getting started wit
     - `kms` — AWS KMS
     - `local` — a master key in the environment
 
-    After configuring a provider, verify it worked by checking that `encryptedDek` is populated for new threads in the database.
+    After configuring a provider, send a test message and confirm that new conversation threads show as encrypted in the Ragen admin panel.
 
     <Warning>
       Thread titles remain in plaintext so title search works. Content search over encrypted threads is therefore title-only — this is a deliberate trade-off.
@@ -204,9 +203,10 @@ This page answers the questions that come up most often when getting started wit
     | Endpoint | Limit |
     |---|---|
     | `POST /v1/chat/completions` | 10 requests per minute |
-    | Other API endpoints | 20 requests per minute |
+    | `POST /v1/files` (upload) | 10 requests per minute |
+    | All other API endpoints | 20 requests per minute |
 
-    Chat completions run the full RAG pipeline (vector search + optional reranking + LLM call), so they carry a stricter limit. When a limit is hit, the response is `429 rate_limit_error`. The official TypeScript SDK retries 429 responses automatically with exponential backoff and jitter.
+    Chat completions run the full RAG pipeline (vector search + optional reranking + LLM call), and file uploads trigger the ingest pipeline, so both carry the stricter limit. When a limit is hit, the response is `429 rate_limit_error`. The official TypeScript SDK retries 429 responses automatically with exponential backoff and jitter.
   </Accordion>
 
   <Accordion title="Can I use the Python OpenAI SDK with Ragen?">

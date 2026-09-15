@@ -29,7 +29,7 @@ Two things to know before assuming full isolation:
 
 ## No analytics or vendor tracking
 
-The application reports nothing to the vendor. There is no tag manager, no product analytics, and no usage ping in the Ragen app. An architecture test fails the build if a tag manager, analytics loader, or hardcoded measurement ID is added.
+The application reports nothing to the vendor. There is no tag manager, no product analytics, and no usage ping in the Ragen app.
 
 <Note>
   Earlier builds of Ragen included a Google Tag Manager container that loaded on every page of a self-hosted install. This has been fully removed. If you're running an older build, upgrade — there is nothing to configure to opt out in the current version.
@@ -51,7 +51,7 @@ Every indexed chunk carries an `accessible_by` list in its vector-store payload.
 
 The common failure mode in other RAG systems is a permission filter on the file list while retrieval searches the whole corpus — the user never sees the document, but receives an answer synthesised from it. Test your own roles before going to production.
 
-**Tenant isolation** is enforced separately. Each organisation gets its own Qdrant collection, and a guard logs any query that touches a tenant-scoped model without its organisation filter applied.
+**Tenant isolation** is enforced separately. Each organisation gets its own Qdrant collection, and a guard logs any query that touches a tenant-scoped collection without its organisation filter applied.
 
 <Warning>
   SSO (SAML, Entra ID, SCIM) and MFA are not yet built. Authentication today is username/password with per-organisation membership, plus opaque API keys for programmatic access stored non-reversibly in the database.
@@ -68,6 +68,10 @@ Ragen maintains two separate logs.
 <Info>
   Neither log has a retention policy or automatic deletion. Rows accumulate in Postgres until you remove them. Both tables hold personal data (IP addresses, user agents, user IDs), so defining and enforcing a retention schedule is your responsibility.
 </Info>
+
+<Note>
+  Direct export to a SIEM is not yet built. Both logs are queryable in Postgres and through the admin panel. Shipping them to Splunk or Sentinel today means reading those tables or the application's structured logs.
+</Note>
 
 ## PII detection
 

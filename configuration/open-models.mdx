@@ -8,13 +8,13 @@ When you point every model role at a local endpoint, nothing your users type and
 
 ## How the Routing Works
 
-All three application services send model requests to a single LiteLLM proxy. Changing which model servers that proxy points to requires only an edit to `infra/litellm/config.yaml` and the matching environment variables — no application code changes.
+All application services send model requests to a single LiteLLM proxy. Changing which model servers that proxy points to requires only an edit to the LiteLLM configuration file (`litellm/config.yaml`) and the matching environment variables — no application code changes.
 
 ```
-apps/web  ─┐
-apps/api   ├─→  LiteLLM proxy  ─→  vLLM / Ollama on your GPU box
-worker    ─┘         ↑
-               infra/litellm/config.yaml
+Web app   ─┐
+API       ├─→  LiteLLM proxy  ─→  vLLM / Ollama on your GPU box
+Worker   ─┘         ↑
+               litellm/config.yaml
 ```
 
 The embedding model is the one exception worth planning around: it determines the shape of the Qdrant index. Changing `EMBEDDINGS_MODEL` requires updating `VECTOR_SIZE` to match the new model's output dimensions and re-indexing every document you have already ingested.
@@ -77,9 +77,9 @@ vllm serve Qwen/Qwen3-8B \
   --host 0.0.0.0 --port 8000
 ```
 
-Register the model in `infra/litellm/config.yaml`. The `hosted_vllm/` prefix is LiteLLM's route for a self-hosted OpenAI-compatible vLLM server:
+Register the model in your LiteLLM configuration file. The `hosted_vllm/` prefix is LiteLLM's route for a self-hosted OpenAI-compatible vLLM server:
 
-```yaml title="infra/litellm/config.yaml"
+```yaml title="litellm/config.yaml"
 model_list:
   - model_name: local-chat
     litellm_params:
@@ -122,9 +122,9 @@ Pull the model you want to use:
 ollama pull qwen3:8b
 ```
 
-Register it in `infra/litellm/config.yaml`. Use `ollama_chat/` rather than `ollama/` — the chat endpoint produces better results:
+Register it in your LiteLLM configuration file. Use `ollama_chat/` rather than `ollama/` — the chat endpoint produces better results:
 
-```yaml title="infra/litellm/config.yaml"
+```yaml title="litellm/config.yaml"
 model_list:
   - model_name: local-chat
     litellm_params:
@@ -154,7 +154,7 @@ SUMMARY_MODEL=local-chat
 
 Both vLLM and Ollama expose a `/v1/embeddings` endpoint. Register an embedding model separately from the chat model so you can hide it from the chat picker:
 
-```yaml title="infra/litellm/config.yaml"
+```yaml title="litellm/config.yaml"
 model_list:
   - model_name: local-embed
     litellm_params:

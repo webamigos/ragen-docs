@@ -4,7 +4,7 @@ sidebarTitle: 'Environment'
 description: 'Configure every aspect of Ragen AI through environment variables — storage, encryption, mail, models, auth, and feature flags, all in one place.'
 ---
 
-Environment variables are the primary configuration mechanism for Ragen AI. Every service in the stack — `apps/web`, `apps/api`, and `apps/worker` — reads its configuration from the process environment at boot, and the same variable names apply whether you are running locally with a `.env` file or deploying to a container orchestrator. A **required** variable is required only once you have chosen a provider that needs it; everything else has a working default in code.
+Environment variables are the primary configuration mechanism for Ragen AI. The web application, API server, and background worker all read their configuration from the process environment at boot, and the same variable names apply whether you are running locally with a `.env` file or deploying to a container orchestrator. A **required** variable is required only once you have chosen a provider that needs it; everything else has a working default in code.
 
 ## Provider Settings
 
@@ -126,7 +126,7 @@ One variable selects an implementation for each provider, and that choice determ
         ```
       </Tab>
       <Tab title="cohere">
-        Cohere Rerank v3.5 through the LiteLLM proxy (routed to AWS Bedrock). Requires valid AWS credentials, the `bedrock:Rerank` IAM permission, and `cohere-rerank-v3-5` uncommented in `infra/litellm/config.yaml`.
+        Cohere Rerank v3.5 through the LiteLLM proxy (routed to AWS Bedrock). Requires valid AWS credentials, the `bedrock:Rerank` IAM permission, and the `cohere-rerank-v3-5` model entry enabled in your LiteLLM configuration.
 
         | Variable | Required | Description |
         |---|---|---|
@@ -139,7 +139,7 @@ One variable selects an implementation for each provider, and that choice determ
         ```
 
         <Note>
-          `cohere-rerank-v3-5` ships commented out in `infra/litellm/config.yaml`. Uncomment it and supply AWS credentials before enabling this provider.
+          `cohere-rerank-v3-5` ships disabled by default in the LiteLLM configuration. Enable it and supply AWS credentials before using this provider.
         </Note>
       </Tab>
     </Tabs>
@@ -205,7 +205,7 @@ These variables apply regardless of which providers you have chosen.
 | `LITELLM_MASTER_KEY` | Optional | — | Auth key for the LiteLLM proxy (required in deployed environments) |
 | `QDRANT_URL` | Optional | `http://localhost:6333` | Qdrant vector store URL |
 | `QDRANT_API_KEY` | Optional | — | Qdrant API key (required in production) |
-| `REDIS_URL` | Optional* | `redis://localhost:56379` | Redis connection URL (*required by `apps/worker`; optional for `apps/web`) |
+| `REDIS_URL` | Optional* | `redis://localhost:56379` | Redis connection URL (*required by the background worker; optional for the web app) |
 | `TEMPORAL_SERVER_ADDRESS` | Optional | `localhost:7233` | Temporal workflow server address |
 | `TEMPORAL_NAMESPACE` | Optional | `local` | Temporal namespace |
 
@@ -215,7 +215,8 @@ These variables apply regardless of which providers you have chosen.
 |---|---|---|
 | `BETTER_AUTH_SECRET` | **Required** | Secret key for Better Auth session signing. Generate with `openssl rand -hex 32`. |
 | `BETTER_AUTH_URL` | **Required** | Public URL of this installation (e.g. `https://app.example.com`). Used in all outbound email links. |
-| `SESSION_AUTH_SECRET` | **Required** | Shared secret for issuing short-lived session tokens between `apps/web` and `apps/api`. Must match in both services. |
+| `SESSION_AUTH_SECRET` | **Required** | Shared secret for issuing short-lived session tokens between the web app and the API service. Must be set to the same value in both services. |
+| `SECRET_KEY` | **Required** | Key used to encrypt organisation API keys stored in the database. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
 
 <Note>
   Generate secret values with:
@@ -226,11 +227,11 @@ These variables apply regardless of which providers you have chosen.
 
 ## Feature Flags
 
-Feature flags let you enable optional capabilities that are off by default. Set any of these to `1` to enable.
+Feature flags control optional capabilities. Most are off by default and enabled by setting them to `1`; `FEATURE_FLAG_DOC_SUMMARIES` is the exception — it defaults on and is disabled by setting it to `0`.
 
 | Variable | Default | Description |
 |---|---|---|
 | `FEATURE_FLAG_RERANKING` | Off | Enable post-retrieval reranking. Also requires provider credentials (`SCW_API_BASE` + `SCW_API_KEY` for Scaleway, or AWS credentials for Cohere). |
 | `FEATURE_FLAG_PII_MASKING` | Off | Enable Presidio PII masking. Requires `PRESIDIO_ANALYZER_URL`. Fails closed on error — unmasked PII never reaches the LLM. |
-| `FEATURE_FLAG_DOC_SUMMARIES` | Off | Generate AI summaries when documents are ingested. Uses `SUMMARY_MODEL`. |
+| `FEATURE_FLAG_DOC_SUMMARIES` | **On** | Generate AI summaries when documents are ingested. Uses `SUMMARY_MODEL`. Disable by setting to `0`. |
 | `DOCLING_STRICT` | Off | Fail the ingest job instead of falling back to a legacy PDF loader that sends documents to an external model. Set to `1` for air-gapped deployments. |

@@ -8,12 +8,12 @@ The admin panel at port `3200` is for the person who runs the Ragen installation
 
 ## Who can access the admin panel
 
-Access to the panel is controlled by `User.role = 'admin'` — the platform administrator role. This is different from being an organisation owner or admin inside the main app. The dashboard layout re-reads this role from the database on every request, so revoking it takes effect immediately rather than waiting for a session to expire.
+Access to the panel is controlled by the platform administrator role. This is different from being an organisation owner or admin inside the main app. The panel re-reads the role on every request, so revoking it takes effect immediately rather than waiting for a session to expire.
 
 | Surface | Who reaches it | Scope |
 |---|---|---|
 | Main app (`:3000`) | Organisation owners and admins | Their own organisation only |
-| Admin panel (`:3200`) | Users with `User.role = 'admin'` | The entire installation |
+| Admin panel (`:3200`) | Platform administrators | The entire installation |
 
 ## Getting in
 
@@ -65,11 +65,11 @@ Two separate controls let you act on a key:
 
 | Action | What it does | Reversible? |
 |---|---|---|
-| **Deactivate** | Clears `isActive`; the key stops authenticating immediately | Yes — the secret is preserved |
-| **Revoke** | Deactivates the key, deletes the secret from the Token Vault, then deletes the row | No |
+| **Deactivate** | Disables the key immediately — authentication stops, but the key record is preserved | Yes — can be re-enabled |
+| **Revoke** | Deactivates the key, deletes the secret from the Token Vault, then deletes the key record | No |
 
 <Warning>
-  Revoking a key requires `RAGEN_TOKEN_VAULT_URL` and `RAGEN_TOKEN_VAULT_SERVICE_SECRET` to be configured on the admin panel. Without them, the panel still lists and deactivates keys but shows a warning explaining why **Revoke** is unavailable. If the vault is unreachable mid-revoke, the key is left deactivated with its row intact — the panel tells you the secret survived rather than deleting the only record of it.
+  Revoking a key requires `RAGEN_TOKEN_VAULT_URL` and `RAGEN_TOKEN_VAULT_SERVICE_SECRET` to be configured on the admin panel. Without them, the panel still lists and deactivates keys but shows a warning explaining why **Revoke** is unavailable. If the vault is unreachable mid-revoke, the key is left deactivated with its record intact — the panel tells you the secret survived rather than deleting the only record of it.
 </Warning>
 
 ## Applying limit defaults to existing organisations
@@ -79,6 +79,10 @@ When you update a platform-wide default in **Limits & Models**, that default app
 <Info>
   **Apply Defaults** raises and lowers values but never removes them — a blank default cannot be distinguished from "leave this organisation alone." The fields it will skip are listed by name in the preview.
 </Info>
+
+## Exporting data
+
+The **Activity** log, AI usage, disk usage, API keys, connectors, and incidents each export to CSV, honouring the filters currently on screen rather than dumping the whole table. Downloading an export is itself recorded in the activity log. CSV cells are protected against formula injection, so values beginning with `=` or `@` cannot execute when the file is opened in a spreadsheet.
 
 ## Activity log and security incidents
 
@@ -94,7 +98,7 @@ Every mutating action in the panel is recorded with before-and-after values. Sen
 
 **Read anyone's conversations.** The panel has no message viewer and no impersonation capability. An operator does not need to read customer messages to run the platform. Thread content is encrypted per organisation, and the panel holds no path to decrypt it.
 
-This is enforced, not merely absent. The Better Auth `admin` plugin ships an impersonate endpoint at `POST /api/auth/admin/impersonate-user`. Rather than leaving it accessible while removing the UI button, Ragen defines the platform admin role without the `user: ["impersonate"]` permission — the route itself rejects requests from platform admins.
+This is enforced at the permission level, not merely absent from the UI. Platform administrators are explicitly denied impersonation rights — the route rejects such requests regardless of whether a UI button exists. This ensures that removing a UI element cannot accidentally re-expose the capability.
 
 **Create user accounts.** The panel grants roles and manages membership. The account must exist first, created by the user themselves through the main app.
 

@@ -4,7 +4,7 @@ sidebarTitle: 'Models'
 description: 'Route all LLM calls through a LiteLLM proxy to any provider — OpenAI, Anthropic, Google, Bedrock, Scaleway, or a local vLLM/Ollama server.'
 ---
 
-Every model call Ragen makes — answering questions, rephrasing queries, summarising documents, and generating embeddings — routes through a single LiteLLM proxy. You set `LITELLM_PROXY_URL` to tell Ragen where that proxy lives, and you configure the models themselves in `infra/litellm/config.yaml`. The environment variables below tell each part of the application which model name to request from the proxy.
+Every model call Ragen makes — answering questions, rephrasing queries, summarising documents, and generating embeddings — routes through a single LiteLLM proxy. You set `LITELLM_PROXY_URL` to tell Ragen where that proxy lives, and you configure the available models in the LiteLLM configuration file (`litellm/config.yaml` in your deployment). The environment variables below tell each part of the stack which model name to request from the proxy.
 
 ## Model Roles
 
@@ -40,7 +40,7 @@ EMBEDDINGS_MODEL=bge-multilingual-gemma2
 
 ## Supported Providers
 
-The LiteLLM proxy supports every major LLM provider. Add the models you want to use to `infra/litellm/config.yaml`, then set the corresponding API key environment variable.
+The LiteLLM proxy supports every major LLM provider. Add the models you want to use to your LiteLLM configuration file, then set the corresponding API key environment variable.
 
 <CardGroup cols={2}>
   <Card title="OpenAI" icon="circle">
@@ -127,9 +127,9 @@ The LiteLLM proxy supports every major LLM provider. Add the models you want to 
 
 ## Registering Models in LiteLLM
 
-Each model you want to use must appear in `infra/litellm/config.yaml`. The `model_name` field is the identifier you set in `DEFAULT_MODEL`, `REPHRASE_MODEL`, etc.
+Each model you want to use must appear in your LiteLLM configuration file (`litellm/config.yaml`). The `model_name` field is the identifier you set in `DEFAULT_MODEL`, `REPHRASE_MODEL`, etc.
 
-```yaml title="infra/litellm/config.yaml"
+```yaml title="litellm/config.yaml"
 model_list:
   - model_name: gemini-3-flash-preview
     litellm_params:

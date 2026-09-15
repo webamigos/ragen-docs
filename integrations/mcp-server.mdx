@@ -20,7 +20,7 @@ Authenticate using a Ragen API key — the same key you'd use for the REST API. 
 Authorization: Bearer YOUR_API_KEY
 ```
 
-A connection with no `Authorization` header, or one that isn't `Bearer`-prefixed, is rejected with `401` before any tool call can proceed. Ragen validates the key on each tool call using the same guard as the REST API — a deactivated or malformed key fails exactly as it would on `POST /v1/chat`.
+A connection with no `Authorization` header, or one that isn't `Bearer`-prefixed, is rejected with `401` before any tool call can proceed. Ragen validates the key on each tool call — a deactivated or malformed key fails exactly as it would on `POST /v1/chat`.
 
 ## Available tools
 

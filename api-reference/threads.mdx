@@ -104,7 +104,7 @@ DELETE /v1/threads/{id}/messages/{message_id}
 
 ### Encrypted threads
 
-Threads created through the Ragen dashboard with encryption enabled (when `AWS_KMS_KEY_ID` is configured) store message content as ciphertext. The API cannot decrypt this content — read endpoints return a placeholder:
+Threads created through the Ragen dashboard with encryption enabled store message content as ciphertext. The API cannot decrypt this content — read endpoints return a placeholder:
 
 ```json
 {

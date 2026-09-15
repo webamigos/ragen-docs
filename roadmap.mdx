@@ -22,7 +22,7 @@ Three parts of Ragen are things you should be able to pick rather than inherit: 
 
 Two things worth understanding before assembling the smallest possible install:
 
-- **The hosted parser is a data-processing decision, not a performance one.** With `DOCUMENT_PARSER=mistral`, every ingested document is transmitted to a third party. That is the right trade for some deployments and disqualifying for others, which is why it will never be a silent fallback. See the [Security](/security) page.
+- **The hosted parser is a data-processing decision, not a performance one.** With `DOCUMENT_PARSER=mistral`, every ingested document is transmitted to a third party. That is the right trade for some deployments and disqualifying for others, which is why it will never be a silent fallback. See the [Security](/security/overview) page.
 - **`pgvector` is a different retrieval system, not a port of the current one.** Qdrant scores sparse vectors server-side; Postgres has no equivalent, so the lexical half of retrieval changes and the results change with it. It ships with published measurements or it does not ship.
 
 The designs are public, one file each, in [`docs/specs/`](https://github.com/webamigos/RagenAI/tree/main/docs/specs) — they name the trade-offs and failure modes rather than only the upside.

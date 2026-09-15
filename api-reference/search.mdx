@@ -1,7 +1,7 @@
 ---
-title: 'Search API — Query Your Knowledge Base Directly'
+title: 'Search API — Query the Ragen AI Knowledge Base Directly'
 sidebarTitle: 'Search'
-description: 'POST /v1/search — Retrieve relevant document chunks from your knowledge base without generating an AI answer.'
+description: 'POST /v1/search — Retrieve ranked document chunks from your Ragen knowledge base without generating an AI answer. Returns context and source file IDs.'
 ---
 
 The Search endpoint returns the RAG context block — the ranked document chunks and source file IDs that Ragen would feed to the language model — without invoking the language model at all. Use it when you want to build your own generation pipeline, plug retrieved passages into a different model, or inspect what Ragen is actually finding before troubleshooting answer quality.
@@ -46,7 +46,7 @@ Authorization: Bearer YOUR_API_KEY
 ```
 
 <ResponseField name="context" type="string">
-  The LLM-ready, PII-redacted context block containing the most relevant document chunks concatenated together. This is exactly what Ragen's chat endpoints pass to the language model as retrieved context.
+  The context block containing the most relevant document chunks concatenated together. This is exactly what Ragen's chat endpoints pass to the language model as retrieved context.
 </ResponseField>
 
 <ResponseField name="file_ids" type="string[]">
@@ -94,7 +94,7 @@ Authorization: Bearer YOUR_API_KEY
   </Tab>
   <Tab title="curl">
     ```bash
-    curl -X POST $RAGEN_BASE_URL/v1/search \
+    curl -X POST $RAGEN_BASE_URL/search \
       -H "Authorization: Bearer YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{

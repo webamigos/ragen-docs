@@ -1,7 +1,7 @@
 ---
-title: 'Ragen AI TypeScript SDK Reference'
+title: 'Ragen AI TypeScript SDK — Methods, Config & Examples'
 sidebarTitle: 'TypeScript SDK'
-description: 'Complete reference for @webamigos/ragen-sdk-ts: typed API client with streaming, auto-retry, file upload helpers, and edge runtime support.'
+description: 'Complete reference for @webamigos/ragen-sdk-ts: chat completions, streaming, file upload, assistants, threads, and TypeScript error handling.'
 ---
 
 The official `@webamigos/ragen-sdk-ts` package wraps the Ragen REST API with fully typed responses, first-class streaming support, automatic retry on 429 and 5xx responses, and convenience helpers for file upload — so you can focus on building your integration rather than wiring HTTP calls by hand. It works in Node.js 18+, edge runtimes (Vercel Edge, Cloudflare Workers), and the browser.
@@ -18,13 +18,13 @@ yarn add @webamigos/ragen-sdk-ts
 
 ## Configuration
 
-Pass a configuration object when you construct the client. Only `apiKey` and `baseURL` are required — everything else has a sensible default.
+Pass a configuration object when you construct the client. `apiKey` and `baseURL` are required (both fall back to environment variables) — everything else has a sensible default.
 
 | Option        | Type           | Default                      | Description                                                           |
 | ------------- | -------------- | ---------------------------- | --------------------------------------------------------------------- |
 | `apiKey`      | `string`       | `process.env.RAGEN_API_KEY`  | Your Ragen API key. Required.                                         |
 | `assistantId` | `string`       | —                            | Default assistant used when you don't pass `assistantId` per call.    |
-| `baseURL`     | `string`       | `process.env.RAGEN_BASE_URL` | Base URL of your Ragen instance, e.g. `http://localhost:3001/v1`.     |
+| `baseURL`     | `string`       | `process.env.RAGEN_BASE_URL` | Base URL of your self-hosted Ragen instance, e.g. `http://localhost:3001/v1`. Required. |
 | `maxRetries`  | `number`       | `2`                          | How many times to retry on 429/5xx and transient network errors.      |
 | `timeout`     | `number` (ms)  | `30000`                      | Per-request timeout in milliseconds.                                  |
 | `fetch`       | `typeof fetch` | `globalThis.fetch`           | Custom `fetch` implementation — useful for testing or older runtimes. |

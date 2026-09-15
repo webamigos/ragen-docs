@@ -70,13 +70,13 @@ A GPU is only needed if you plan to serve language models on your own hardware. 
   </Step>
 
   <Step title="Seed the database">
-    Write the internal subscription plans that every organization is created against:
+    Populate the database with the default configuration that every new organization requires:
 
     ```bash
     npm run db:seed
     ```
 
-    This is not optional — without it, organization creation fails. It reads configuration from `.env.local`.
+    This step is not optional — without it, organization creation fails. It reads configuration from `.env.local`.
   </Step>
 
   <Step title="Start the applications">
@@ -154,7 +154,6 @@ The variables below are the minimum required for a working Ragen installation. C
 
 ```bash title=".env.local"
 DATABASE_URL="postgresql://postgres:<GENERATED_DB_PASSWORD>@localhost:55432/ragen"
-DATABASE_DIRECT_URL="postgresql://postgres:<GENERATED_DB_PASSWORD>@localhost:55432/ragen"
 
 REDIS_URL=redis://localhost:56379
 QDRANT_URL=http://localhost:6333
@@ -209,7 +208,7 @@ Set `ENCRYPTION_PROVIDER` to one of the following values and supply the matching
 | `kms` | AWS KMS |
 | `local` | A locally-managed key (not recommended for multi-replica deployments) |
 
-Verify encryption is active by checking that new threads have `encryptedDek` populated in your database after the change.
+Verify encryption is active by creating a new thread after the change — if the API returns the thread without error and subsequent messages are readable, encryption is working correctly.
 
 ### Storage
 

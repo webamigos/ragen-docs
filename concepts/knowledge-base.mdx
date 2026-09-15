@@ -1,5 +1,5 @@
 ---
-title: 'Building and Managing Your Knowledge Base'
+title: 'Knowledge Base: Folders, Versioning, and File Visibility'
 sidebarTitle: 'Knowledge Base'
 description: 'Organize documents into nested folders with fine-grained permissions. Control who sees each file at the team, user, and org level.'
 ---
@@ -40,8 +40,8 @@ When you upload a file, Ragen AI processes it automatically in the background. Y
   <Step title="Embed">
     Each chunk — including the summary chunk — is converted to a hybrid representation: a dense vector using `bge-multilingual-gemma2` for semantic meaning, plus BM25 sparse tokens for exact-term matching.
   </Step>
-  <Step title="Store in Qdrant">
-    Both vector types are upserted into Qdrant's named-vector collection. The chunk also carries an `accessible_by` metadata field that encodes the file's visibility rules, so retrieval automatically filters results based on who is asking.
+  <Step title="Store">
+    Both vector types are stored in the vector collection along with the file's visibility rules as chunk metadata. Retrieval queries automatically filter results based on who is asking, so a document someone cannot read never surfaces in their answers.
   </Step>
 </Steps>
 

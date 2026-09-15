@@ -1,7 +1,7 @@
 ---
-title: 'Authenticating Requests to the Ragen AI API'
+title: 'Ragen AI API Authentication — API Keys and Headers'
 sidebarTitle: 'Authentication'
-description: 'Learn the API key format, how to pass the Authorization header, and how to handle common authentication errors in Ragen AI.'
+description: 'Set up API key authentication for Ragen AI. Learn the Bearer token format, Authorization header usage, and how to handle 401 and 403 errors.'
 ---
 
 Every request to the Ragen AI API must include a valid Bearer token. You generate that token by creating an API key in your instance's Settings dashboard — the key is scoped to your organization and a default project, and it cannot be retrieved after it is first shown to you.
@@ -37,7 +37,7 @@ Every Ragen API key follows this structure:
 Bearer sk-<keyId>.<secret>
 ```
 
-The `sk-` prefix signals that the value is an API secret key. The `<keyId>` portion identifies the key record in the database; the `<secret>` portion is the credential that authenticates the request. Both parts are required.
+The `sk-` prefix signals that the value is an API secret key. The `<keyId>` portion identifies the key; the `<secret>` portion is the credential that authenticates the request. Both parts are required.
 
 ## Passing the Authorization header
 

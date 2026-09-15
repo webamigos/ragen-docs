@@ -33,12 +33,12 @@ Connectors are set up per user, not per organisation. Each person who wants to u
     A browser window opens for the provider (Google, Slack, HubSpot, etc.). Sign in and grant the requested permissions. The exact scopes shown depend on the connector.
   </Step>
   <Step title="Confirm the connection">
-    After authorising, the browser redirects back to Ragen. The connector's status changes to **Connected**. Your credentials are now stored in the Ragen Token Vault.
+    After authorising, the browser redirects back to Ragen. The connector's status changes to **Connected**. Your credentials are now stored securely.
   </Step>
 </Steps>
 
 <Note>
-  Ragen stores your OAuth tokens in the **Ragen Token Vault** — a separate service with AES-256-GCM encryption — not in the main application database. Your tokens are never written to Postgres.
+  Ragen stores your OAuth tokens securely in an isolated credential store, separate from the main application. Tokens are encrypted at rest and are never accessible to other users or organisations.
 </Note>
 
 <Warning>

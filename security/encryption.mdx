@@ -7,7 +7,7 @@ description: 'Enable AES-256-GCM envelope encryption for conversation threads at
 Ragen offers opt-in AES-256-GCM envelope encryption for conversation data at rest. Each conversation thread gets its own data encryption key, which is itself encrypted by a master key held in your key provider. The master key never leaves your control.
 
 <Warning>
-  Encryption is **off by default**. With no key provider configured, Ragen starts normally and stores message content in plaintext. Local development works this way intentionally, but a production deployment must configure a provider explicitly. Verify that `Thread.encryptedDek` is populated for new threads after enabling encryption.
+  Encryption is **off by default**. With no key provider configured, Ragen starts normally and stores message content in plaintext. Local development works this way intentionally, but a production deployment must configure a provider explicitly. Verify that new threads are being encrypted by checking the SQL query in the [Verifying encryption is active](#verifying-encryption-is-active) section below.
 </Warning>
 
 ## Choosing a key provider
@@ -36,7 +36,7 @@ If you leave `ENCRYPTION_PROVIDER` unset, Ragen auto-detects a provider by check
     All message content written to that thread is encrypted using the plaintext DEK with AES-256-GCM. The plaintext DEK is held only in memory for the duration of the request and never written to disk.
   </Step>
   <Step title="Wrapped key storage">
-    The wrapped DEK is stored in `Thread.encryptedDek` in Postgres. To decrypt a thread later, Ragen unwraps the DEK using the key provider, then uses it to decrypt the message content.
+    The wrapped DEK is stored alongside the thread record in Postgres. To decrypt a thread later, Ragen unwraps the DEK using the key provider, then uses it to decrypt the message content.
   </Step>
   <Step title="Thread titles stay plaintext">
     Thread titles are stored in plaintext deliberately so that title search continues to work. Content search over encrypted threads is title-only — a deliberate trade-off.
@@ -56,7 +56,7 @@ Enabling encryption changes the behaviour of two features:
     With encryption on, `input` and `output` fields are omitted from Langfuse traces. Only tags, session ID, and model are recorded — message content is never sent to the tracing backend.
   </Card>
   <Card title="Content search" icon="magnifying-glass">
-    Search across encrypted threads matches on thread titles only. Message content is not searched whether or not it is encrypted.
+    Search across threads matches on thread titles only. Message content is not searched whether or not it is encrypted.
   </Card>
 </CardGroup>
 

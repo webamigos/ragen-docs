@@ -29,10 +29,9 @@ Ragen contains two separate OAuth flows. They use the same two environment varia
 |---|---|---|
 | Purpose | Operator signs into `:3200` | End user links their Google account as a data source |
 | Who authenticates | A platform administrator | A regular user |
-| Secret location | `apps/admin` | Ragen Token Vault |
 | Redirect URI | `{admin URL}/api/auth/callback/google` | `{vault URL}/v1/oauth/google/callback` |
 | Scopes | `openid`, `email`, `profile` | Calendar / Drive / Analytics / Ads scopes |
-| Where tokens land | The `accounts` table | The vault, encrypted with AES-256-GCM |
+| Where tokens land | The admin panel's session store | The credential store, encrypted at rest |
 
 Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pair of credentials in the shared root `.env.local`, both features point at the same Google Cloud client.
 
@@ -57,7 +56,7 @@ Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pa
 
     Add every origin your admin panel is reachable on. Google matches URIs exactly — a trailing slash, wrong scheme, or missing subdomain all produce `redirect_uri_mismatch`.
 
-    No scopes need configuring on the client. Better Auth requests `openid`, `email`, and `profile` by default, and those three require no consent-screen review.
+    No scopes need configuring on the client. Ragen requests `openid`, `email`, and `profile` by default, and those three require no consent-screen review.
   </Step>
   <Step title="Set the credentials">
     Add the credentials to `apps/admin/.env.local` (prefer this over the shared root `.env.local` if connector OAuth is also in use):
@@ -67,7 +66,7 @@ Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pa
     GOOGLE_CLIENT_SECRET="your-client-secret"
     ```
 
-    Also confirm that `BETTER_AUTH_URL` matches the origin the panel is served on. If the panel is at `https://admin.example.com` but `BETTER_AUTH_URL` is `http://localhost:3200`, Google receives a localhost callback and fails with a redirect URI mismatch.
+    Also confirm that `BETTER_AUTH_URL` matches the origin the panel is served on — this is used to construct the OAuth callback URI. If the panel is at `https://admin.example.com` but `BETTER_AUTH_URL` is `http://localhost:3200`, Google receives a localhost callback and fails with a redirect URI mismatch.
   </Step>
   <Step title="Set the allowed email domain">
     ```bash
@@ -76,7 +75,7 @@ Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pa
 
     This restricts which email domain may create a **new** account through Google sign-in. The default is `webamigos.pl`, which is wrong for every other installation — set it to your domain, or set it to an empty string to allow any domain.
 
-    This gate applies only to account *creation*. Existing accounts are unaffected when you change it. The real access control is `User.role = 'admin'`, which is re-read from the database on every request.
+    This gate applies only to account *creation*. Existing accounts are unaffected when you change it. The real access control is the platform admin role assigned to each account — a user who clears the domain check still cannot access the panel until that role is granted from **Users**.
   </Step>
   <Step title="Verify the configuration">
     Restart the admin panel so it picks up the new environment variables. Open `http://localhost:3200` (or your deployed URL). The **Sign in with Google** button appears only when both credentials have reached the process.
@@ -87,7 +86,7 @@ Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pa
     |---|---|
     | The admin dashboard | Everything is working correctly |
     | No Google button | `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` is missing from the panel's environment |
-    | "That account is not a platform administrator" | OAuth worked, but the account doesn't have `User.role = 'admin'` — grant it from **Users** |
+    | "That account is not a platform administrator" | OAuth worked, but the account hasn't been granted the platform admin role — grant it from **Users** |
     | A Google error page | The OAuth client is misconfigured — see common errors below |
   </Step>
 </Steps>
@@ -97,7 +96,7 @@ Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pa
 <Accordion title="redirect_uri_mismatch">
   The callback URI Google received doesn't match any URI registered on the OAuth client. Compare the URI character by character. Common causes:
 
-  - `BETTER_AUTH_URL` doesn't match the origin the browser is using
+  - `BETTER_AUTH_URL` doesn't match the origin the browser is using — the panel builds its callback URI from this value
   - The redirect URI in Google Cloud Console has a trailing slash but the one Ragen sends doesn't (or vice versa)
   - You registered `http://` but the panel is served over `https://`
   - The wrong subdomain — `localhost` instead of `admin.example.com`

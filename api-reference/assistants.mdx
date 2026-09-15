@@ -1,7 +1,7 @@
 ---
-title: 'Assistants API — Manage Ragen Projects via API'
+title: 'Assistants API — Create and Manage Ragen AI Projects'
 sidebarTitle: 'Assistants'
-description: 'CRUD endpoints for Ragen assistants (projects). OpenAI-compatible API for creating and managing knowledge base configurations.'
+description: 'CRUD endpoints for Ragen assistants (projects). OpenAI-compatible API for listing, creating, updating, and deleting knowledge base projects.'
 ---
 
 In Ragen, an **assistant** is a project — a named container with its own knowledge base, system instructions, and settings. The Assistants API is an OpenAI-compatible CRUD surface over your projects, which means you can use the `openai` Python or Node SDK with `base_url` pointed at your Ragen instance to create, list, update, and delete assistants without writing custom HTTP code.
@@ -155,7 +155,7 @@ This prevents accidentally breaking your own chat and files context. Issue or ro
   <Tab title="curl">
     ```bash
     # Create
-    curl -X POST $RAGEN_BASE_URL/v1/assistants \
+    curl -X POST $RAGEN_BASE_URL/assistants \
       -H "Authorization: Bearer YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
@@ -164,21 +164,21 @@ This prevents accidentally breaking your own chat and files context. Issue or ro
       }'
 
     # List
-    curl $RAGEN_BASE_URL/v1/assistants \
+    curl $RAGEN_BASE_URL/assistants \
       -H "Authorization: Bearer YOUR_API_KEY"
 
     # Retrieve
-    curl $RAGEN_BASE_URL/v1/assistants/asst-abc123 \
+    curl $RAGEN_BASE_URL/assistants/asst-abc123 \
       -H "Authorization: Bearer YOUR_API_KEY"
 
     # Update
-    curl -X PATCH $RAGEN_BASE_URL/v1/assistants/asst-abc123 \
+    curl -X PATCH $RAGEN_BASE_URL/assistants/asst-abc123 \
       -H "Authorization: Bearer YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{"name": "Support Bot v2"}'
 
     # Delete
-    curl -X DELETE $RAGEN_BASE_URL/v1/assistants/asst-abc123 \
+    curl -X DELETE $RAGEN_BASE_URL/assistants/asst-abc123 \
       -H "Authorization: Bearer YOUR_API_KEY"
     ```
   </Tab>
