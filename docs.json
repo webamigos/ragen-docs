@@ -64,6 +64,7 @@
             "pages": [
               "security/overview",
               "security/encryption",
+              "security/pii-masking",
               "security/admin-panel"
             ]
           },

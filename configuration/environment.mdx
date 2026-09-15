@@ -189,6 +189,6 @@ Feature flags control optional capabilities. Most are off by default and enabled
 | Variable | Default | Description |
 |---|---|---|
 | `FEATURE_FLAG_RERANKING` | Off | Enable post-retrieval reranking. Also requires provider credentials (`SCW_API_BASE` + `SCW_API_KEY` for Scaleway, or AWS credentials for Cohere). |
-| `FEATURE_FLAG_PII_MASKING` | Off | Enable Presidio PII masking. Requires `PRESIDIO_ANALYZER_URL`. Fails closed on error — unmasked PII never reaches the LLM. |
+| `FEATURE_FLAG_PII_MASKING` | — | **Kill switch only.** Masking is on when `PRESIDIO_ANALYZER_URL` and `PRESIDIO_ANONYMIZER_URL` are both set; `0` turns it off on a configured deployment. Fails closed on error — unmasked PII never reaches the LLM. See [PII masking](/security/pii-masking). |
 | `FEATURE_FLAG_DOC_SUMMARIES` | **On** | Generate AI summaries when documents are ingested. Uses `SUMMARY_MODEL`. Disable by setting to `0`. |
 | `DOCLING_STRICT` | Off | Fail the ingest job instead of falling back to a legacy PDF loader that sends documents to an external model. Set to `1` for air-gapped deployments. |

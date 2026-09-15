@@ -1,0 +1,117 @@
+---
+title: 'Masking Personal Data Before It Reaches the Model'
+sidebarTitle: 'PII masking'
+description: 'Detect and mask personal data with Microsoft Presidio before it reaches an LLM or the vector store, with Polish recognisers that validate checksums.'
+---
+
+Ragen can detect personal data in a message or a document and replace it before anything is sent to a model or written to the vector store. Detection runs on [Microsoft Presidio](https://microsoft.github.io/presidio/), in two containers you host.
+
+It is **off unless you configure it**, and off is the right default for most deployments: the analyzer carries language models and is the heaviest thing in the stack.
+
+<Note>
+  Masking and [encryption at rest](/security/encryption) solve different problems and compose. Encryption protects stored content from whoever reaches the disk. Masking decides what is stored and what is sent to a third-party model in the first place — the data never leaves your network unmasked, encrypted or not.
+</Note>
+
+## Turning it on
+
+Two variables, both needed. The analyzer finds entities and the anonymizer replaces them; one without the other is a request that fails halfway.
+
+```bash .env.local
+PRESIDIO_ANALYZER_URL=http://localhost:5002
+PRESIDIO_ANONYMIZER_URL=http://localhost:5003
+```
+
+On a Compose network the values are the service names instead:
+
+```bash
+PRESIDIO_ANALYZER_URL=http://presidio-analyzer:3000
+PRESIDIO_ANONYMIZER_URL=http://presidio-anonymizer:3000
+```
+
+The services sit behind a profile, so they do not start with the rest of the stack:
+
+```bash
+docker compose --profile pii up -d
+```
+
+That is all. **Availability follows these two URLs** — there is no separate switch to remember, and no way to ask for masking and get silence instead.
+
+### The kill switch
+
+```bash
+FEATURE_FLAG_PII_MASKING=0
+```
+
+Turns masking off on a configured deployment, for an incident where the analyzer is the problem. Only `0` does this; any other value leaves a configured deployment masking.
+
+<Warning>
+  **Upgrading from an older version?** `FEATURE_FLAG_PII_MASKING=1` used to be what enabled masking, and the URLs had built-in defaults. If your deployment sets that flag and never set the URLs, it now masks nothing.
+
+  Ragen reports this at startup rather than leaving you to discover it:
+
+  ```
+  [security] FEATURE_FLAG_PII_MASKING=1 asks for PII masking, but neither
+  PRESIDIO_ANALYZER_URL nor PRESIDIO_ANONYMIZER_URL is set, so nothing is masked.
+  ```
+
+  Set both URLs. The flag can stay — it is harmless unless set to `0`.
+</Warning>
+
+## What it recognises
+
+Presidio's standard recognisers (names, email addresses, phone numbers, credit cards, IBANs, and more) plus Polish entities that Ragen adds, **with checksum validation** — the built-in patterns match the shape of these numbers but not their validity, which produces false positives on any similar-looking digit string:
+
+| Entity | Notes |
+|---|---|
+| `PL_PESEL` | National identification number, checksum validated |
+| `PL_NIP` | Tax identifier, checksum validated |
+| `PL_REGON` | Business registry number, checksum validated |
+| `PL_ID_CARD` | Identity card number |
+| `PL_IBAN` | Polish bank account number |
+| `PERSON` | Polish-language name recognition |
+
+The recognisers live in `infra/presidio/analyzer/recognizers/`, and the analyzer image is built from `infra/presidio/analyzer/` — so adding one is a change to your own deployment, not a fork of Ragen.
+
+## Choosing what happens to the original
+
+Masking is not one behaviour. Each organisation picks an **ingestion mode** in **Organization → PII policy**:
+
+<CardGroup cols={2}>
+  <Card title="Standard" icon="shield">
+    The original is irreversibly replaced before storage. Nothing sensitive survives the masking step — not in Postgres, not in the vector store.
+
+    Changing to this later means re-processing existing documents.
+  </Card>
+  <Card title="Extended" icon="key">
+    The visible content is masked, and an AES-256-GCM encrypted original is kept beside it so the assistant can answer accurately from it.
+
+    The original passes through your search infrastructure. Enable only if your security policy allows it.
+  </Card>
+</CardGroup>
+
+<Note>
+  The policy control is unavailable until a masker is configured, and this is deliberate rather than a UI convenience: a stored policy that nothing enforces reads as active in the admin panel while changing nothing about what is written to disk. Ragen refuses the write, not just the button.
+</Note>
+
+## What it costs
+
+Two containers, roughly 1 GB of RAM together. The analyzer is built locally rather than pulled, because it carries the spaCy language models and the Polish recognisers.
+
+This is the reason masking is opt-in rather than on by default, and the reason the services carry a Compose profile: a deployment that does not mask should not pay for them.
+
+## Failure behaviour
+
+**Chat fails closed.** If the analyzer cannot be reached while a message is being masked, the request fails rather than continuing with unmasked text. Unmasked personal data never reaches a model because a container was down.
+
+Two security events are recorded, visible in the incidents dashboard:
+
+| Event | Severity | When |
+|---|---|---|
+| `CHAT_PII_DETECTED` | `info` | Personal data was found and masked — with the entity types and counts, never the values |
+| `CHAT_PII_MASKING_FAILED` | `warn` | The analyzer could not be reached, and the request was refused |
+
+## Limits worth knowing
+
+- **Detection is statistical.** Checksum-validated entities are reliable; name recognition is not, in any language. Treat masking as a strong control, not a guarantee, and pair it with the access controls that decide who can read a document at all.
+- **Existing documents are not re-processed.** Turning masking on affects what is ingested from that point. Documents already in the knowledge base keep the form they were stored in.
+- **Thread titles are not masked**, for the same reason they are not encrypted: title search would stop working. Avoid putting personal data in a thread title.
