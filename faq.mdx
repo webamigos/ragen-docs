@@ -61,16 +61,15 @@ This page answers the questions that come up most often when getting started wit
 
 <AccordionGroup>
   <Accordion title="Which AI providers does Ragen support?">
-    Ragen routes every model call through a [LiteLLM](https://docs.litellm.ai/) proxy that you run alongside the stack. LiteLLM supports a wide range of providers, including:
+    Ragen calls providers itself, using a route table that names the upstream for each model id. Five provider families are built in:
 
     - **OpenAI** (GPT-4o, GPT-4.1, o3, etc.)
-    - **Anthropic** (Claude 3.5, Claude 3.7, etc.)
+    - **Anthropic** (Claude, direct or via Bedrock)
     - **Azure OpenAI**
     - **Amazon Bedrock**
     - **Google Vertex AI**
-    - **Local models** via vLLM or Ollama
 
-    Any provider LiteLLM supports works with Ragen. Configure your provider in `infra/litellm/config.yaml`.
+    Anything else that speaks OpenAI's API — vLLM, Ollama, OpenRouter, Portkey, or a LiteLLM proxy you run yourself — attaches as an `openai-compatible` route, which is two environment variables and no code change. See [Model gateway](/configuration/model-gateway).
   </Accordion>
 
   <Accordion title="Can I use different models for different tasks?">
@@ -83,7 +82,7 @@ This page answers the questions that come up most often when getting started wit
     | `SUMMARY_MODEL` | Document summary generation at ingest | `gemini-2.5-flash` |
     | `EMBEDDINGS_MODEL` | Vectorising documents and queries | `bge-multilingual-gemma2` |
 
-    Set each variable to any model name that your LiteLLM proxy serves. For example, you might use a fast, cheap model for rephrasing and a more capable one for answering.
+    Set each variable to a model id that exists in your route table. For example, you might use a fast, cheap model for rephrasing and a more capable one for answering.
   </Accordion>
 
   <Accordion title="Can I change the embedding model after setup?">
@@ -127,13 +126,13 @@ This page answers the questions that come up most often when getting started wit
 
     | Configuration | What Leaves Your Network |
     |---|---|
-    | LiteLLM pointed at a locally-served model | Nothing, in normal operation |
-    | LiteLLM pointed at a commercial API (OpenAI, Anthropic, etc.) | The prompt: the question plus the retrieved document chunks needed to answer it |
+    | Routes pointed at a locally-served model | Nothing, in normal operation |
+    | Routes pointed at a commercial API (OpenAI, Anthropic, etc.) | The prompt: the question plus the retrieved document chunks needed to answer it |
 
     Two caveats apply regardless:
 
     - **Document parsing can fall back externally.** `DOCUMENT_PARSER=docling` parses on your hardware, but if Docling fails the worker falls back to a loader that sends PDFs to an external model. Set `DOCLING_STRICT=1` to fail ingest instead.
-    - **Content moderation goes directly outward.** If `MODERATION_ENABLED` is on, it calls OpenAI's moderation endpoint directly — it does not go through LiteLLM. Leave moderation off on an isolated install.
+    - **Content moderation goes directly outward.** If `MODERATION_ENABLED` is on, it calls OpenAI's moderation endpoint directly — it is the one model call the route table cannot redirect. Leave moderation off on an isolated install.
 
     See [Security and Privacy](/security/overview) for the full breakdown.
   </Accordion>
