@@ -1,7 +1,7 @@
 ---
 title: 'Model Gateway — Direct Provider Calls or a Proxy of Your Choosing'
 sidebarTitle: 'Model gateway'
-description: 'Choose how Ragen reaches model providers: call them directly with LLM_GATEWAY=native, or route through LiteLLM, Portkey, vLLM, or Ollama.'
+description: 'Choose how Ragen reaches model providers: call them directly with LLM_GATEWAY=native, attach Portkey, vLLM or Ollama per model, or put a LiteLLM proxy in front of everything.'
 ---
 
 Ragen has to turn "answer this question with `gpt-5.4`" into an HTTP call to somebody's API. There are two ways it can do that, and you choose which.
@@ -12,6 +12,10 @@ Ragen has to turn "answer this question with `gpt-5.4`" into an HTTP call to som
 | `litellm` | Every call goes to a [LiteLLM](https://github.com/BerriAI/litellm) proxy you also run |
 
 Switching is that one variable plus a redeploy. There is no migration and no state on either side, so switching back is the same move in reverse.
+
+<Note>
+  **There is no `LLM_GATEWAY=portkey`.** Portkey, vLLM, Ollama and anything else speaking OpenAI's API are attached *under* `native`, per model, as a route with `provider: openai-compatible` — see [Attaching a different gateway](#attaching-a-different-gateway). `litellm` is the one proxy with a flag value of its own, because it is the path Ragen is migrating away from and the rollback while that lasts.
+</Note>
 
 <Warning>
   Because `native` is the default, a deployment that sets nothing calls providers directly — which means the provider credentials must be present in the **web, api and worker** processes, not only in a proxy container. If you are upgrading a deployment that relied on the proxy, either supply those credentials to all three or set `LLM_GATEWAY=litellm` explicitly. Check before deploying, with a real call per model:
