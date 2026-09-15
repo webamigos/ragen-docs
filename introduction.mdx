@@ -1,0 +1,82 @@
+---
+title: "Ragen AI: Self-Hosted RAG Platform for Companies"
+sidebarTitle: "Introduction"
+description: "Ragen AI turns your company documents into an AI knowledge base with multilingual retrieval, source-traceable answers, and an OpenAI-compatible API."
+---
+
+Ragen AI is a self-hosted, open-source RAG (Retrieval-Augmented Generation) platform that lets your team and customers ask questions of your company's documents and get answers grounded in your actual data — with every answer traceable back to the source. You run it entirely on your own infrastructure: your documents, your database, your vector index, your encryption keys.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Scaffold a working Ragen instance in under 10 minutes with a single command.
+  </Card>
+  <Card title="Self-Hosting Guide" icon="server" href="/self-hosting">
+    Set up Ragen on your own infrastructure with Docker Compose or Kubernetes.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/quickstart">
+    Integrate Ragen into your apps with the OpenAI-compatible REST API.
+  </Card>
+  <Card title="TypeScript SDK" icon="npm" href="/api-reference/typescript-sdk">
+    Use the official `@webamigos/ragen-sdk-ts` client for typed, streaming-ready access.
+  </Card>
+</CardGroup>
+
+## What is Ragen AI?
+
+Ragen connects your existing documents — PDF, DOCX, PPTX, XLSX, CSV, Markdown, images, URLs, and more — to modern language models using Retrieval-Augmented Generation. When a user asks a question, Ragen retrieves the most relevant document chunks and generates an answer that cites those chunks by source, so your team always knows where the information came from.
+
+### Key capabilities
+
+<CardGroup cols={2}>
+  <Card title="AI Chat Assistant" icon="comments">
+    Internal knowledge platform for your team, with document permissions enforced at retrieval — not just in the UI.
+  </Card>
+  <Card title="Embeddable Chatbot" icon="robot">
+    Customer-facing widget you can embed on any website, backed by your own knowledge base.
+  </Card>
+  <Card title="OpenAI-Compatible API" icon="plug">
+    Drop-in replacement for OpenAI's Chat Completions, Files, Assistants, and Threads APIs.
+  </Card>
+  <Card title="No Model Lock-In" icon="shuffle">
+    Route to OpenAI, Anthropic, Azure, AWS Bedrock, Google Vertex, or models running on your own hardware.
+  </Card>
+  <Card title="Multilingual Retrieval" icon="language">
+    Hybrid dense + sparse (BM25) search with cross-encoder reranking. 92% multilingual benchmark accuracy.
+  </Card>
+  <Card title="MCP Integrations" icon="link">
+    Connect Google Drive, Google Calendar, Gmail, HubSpot, ClickUp, and Slack as live data sources.
+  </Card>
+</CardGroup>
+
+## How it works
+
+<Steps>
+  <Step title="Upload your documents">
+    Add PDFs, Word docs, spreadsheets, web pages, or any supported file to a project (knowledge base). Ragen parses, chunks, and embeds them automatically.
+  </Step>
+  <Step title="Ask a question">
+    Users ask questions in the chat interface, via the API, or through an embedded chatbot. Ragen retrieves the most relevant document chunks using hybrid vector + keyword search.
+  </Step>
+  <Step title="Get a grounded answer">
+    The language model generates an answer using only the retrieved content, and Ragen shows which documents and passages it cited — so you can verify every response.
+  </Step>
+</Steps>
+
+## Deployment options
+
+| Option | What it means |
+|---|---|
+| Self-hosted | Docker Compose or Kubernetes on infrastructure you control |
+| Private cloud | Your own cloud account (AWS, Azure, GCP, Scaleway) |
+| Air-gapped | Supported by architecture — all model calls can route to local hardware |
+
+<Tip>
+  A demo instance is available at [demo.ragen.ai](https://demo.ragen.ai) seeded with sample data. It shows what a Ragen installation looks like — your own data belongs on your own instance.
+</Tip>
+
+## Next steps
+
+- **New to Ragen?** Start with the [Quick Start](/quickstart) to get a local instance running in minutes.
+- **Ready to deploy?** Follow the [Self-Hosting Guide](/self-hosting) for a production setup.
+- **Building an integration?** Jump straight to the [API Reference](/api-reference/quickstart) or [TypeScript SDK](/api-reference/typescript-sdk).
+- **Running local models?** See the [Open Models guide](/configuration/open-models) to run completely offline.

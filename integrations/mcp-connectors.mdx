@@ -1,0 +1,80 @@
+---
+title: 'Connect External Services with Ragen MCP Integrations'
+sidebarTitle: 'MCP Connectors'
+description: 'Connect Google Drive, Slack, HubSpot, Gmail, ClickUp, and more as live data sources inside Ragen conversations using MCP connectors.'
+---
+
+MCP connectors let you bring live data from external services directly into your Ragen conversations. Instead of manually copying information across tools, you connect a service once and Ragen's assistants can query it in real time — searching your emails, pulling CRM records, checking calendar events, or importing documents from Drive — all as part of a single chat response.
+
+## Available connectors
+
+| Connector | What it provides |
+|---|---|
+| Google Drive | Import and sync documents from folders into your knowledge base |
+| Google Calendar | Query upcoming and past calendar events in chat |
+| Google Analytics | Access analytics data and metrics by property |
+| Gmail | Search and reference emails by subject, sender, or date |
+| HubSpot | Pull CRM contacts, deals, and company data into answers |
+| ClickUp | Retrieve task and project data from your workspace |
+| Slack | Search message history, threads, and channel content |
+
+## How to connect a service
+
+Connectors are set up per user, not per organisation. Each person who wants to use a connector must authorise it with their own account.
+
+<Steps>
+  <Step title="Open Connector Settings">
+    In the Ragen main app, navigate to **Settings → Connectors**. You'll see a list of all available connectors and their current status.
+  </Step>
+  <Step title="Click Connect">
+    Select the connector you want to add and click **Connect**. Ragen initiates an OAuth authorisation flow for that service.
+  </Step>
+  <Step title="Authorise in the provider's window">
+    A browser window opens for the provider (Google, Slack, HubSpot, etc.). Sign in and grant the requested permissions. The exact scopes shown depend on the connector.
+  </Step>
+  <Step title="Confirm the connection">
+    After authorising, the browser redirects back to Ragen. The connector's status changes to **Connected**. Your credentials are now stored in the Ragen Token Vault.
+  </Step>
+</Steps>
+
+<Note>
+  Ragen stores your OAuth tokens in the **Ragen Token Vault** — a separate service with AES-256-GCM encryption — not in the main application database. Your tokens are never written to Postgres.
+</Note>
+
+<Warning>
+  Connectors are **per-user**, not organisation-wide. Each team member must connect their own account for each service they want to use. An admin connecting Google Drive does not give anyone else access to that Drive.
+</Warning>
+
+## Importing a Google Drive folder
+
+If you connect Google Drive, you can import an entire folder's contents into a project knowledge base — up to 200 files per import.
+
+<Steps>
+  <Step title="Open a project knowledge base">
+    Navigate to the project where you want to import files and open the **Knowledge Base** tab.
+  </Step>
+  <Step title="Choose Import from Google Drive">
+    Click **Add files** and select **Import from Google Drive**. The folder picker dialog opens.
+  </Step>
+  <Step title="Select a folder">
+    Browse your Drive and select the folder you want to import. Ragen lists the files it finds in the folder — up to 200 — and shows you what will be imported.
+  </Step>
+  <Step title="Confirm the import">
+    Click **Import**. Ragen uploads the files to storage and starts the ingestion pipeline in the background. Large folders may take a few minutes to finish indexing.
+  </Step>
+  <Step title="Verify indexed files">
+    Once ingestion completes, the imported files appear in your knowledge base. Each file shows its source Drive ID so you can trace it back to the original.
+  </Step>
+</Steps>
+
+<Note>
+  Auto-sync with Google Drive is not yet available. If the source folder changes, re-import it to update the knowledge base. The import limit is 200 files per folder.
+</Note>
+
+## Using connectors in chat
+
+Once a connector is active, Ragen's assistants automatically include it as a tool source during conversations. You don't need to do anything special — just ask a question that requires that data, and the assistant queries the connector in the background before answering.
+
+<Tip>
+  If an assistant isn't using a connector you've connected, check **Settings → Connectors** to confirm the connection is healthy. A connector with an expired or revoked token shows an error and needs to be reconnected.
+</Tip>

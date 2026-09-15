@@ -1,0 +1,90 @@
+---
+title: 'Encrypting Conversation Thread Data at Rest in Ragen'
+sidebarTitle: 'Encryption'
+description: 'Enable AES-256-GCM envelope encryption for conversation threads at rest using Scaleway Key Manager, AWS KMS, or a local master key.'
+---
+
+Ragen offers opt-in AES-256-GCM envelope encryption for conversation data at rest. Each conversation thread gets its own data encryption key, which is itself encrypted by a master key held in your key provider. The master key never leaves your control.
+
+<Warning>
+  Encryption is **off by default**. With no key provider configured, Ragen starts normally and stores message content in plaintext. Local development works this way intentionally, but a production deployment must configure a provider explicitly. Verify that `Thread.encryptedDek` is populated for new threads after enabling encryption.
+</Warning>
+
+## Choosing a key provider
+
+Set `ENCRYPTION_PROVIDER` to one of the following values and supply the required variables:
+
+| `ENCRYPTION_PROVIDER` | Backend | Required variables |
+|---|---|---|
+| `scaleway` | Scaleway Key Manager | `SCW_KEY_MANAGER_KEY_ID`, `SCW_API_KEY` |
+| `kms` | AWS KMS | `AWS_KMS_KEY_ID` (plus existing `AWS_*` credentials) |
+| `local` | Local master key — **development only** | `ENCRYPTION_MASTER_KEY` |
+
+If you leave `ENCRYPTION_PROVIDER` unset, Ragen auto-detects a provider by checking in order: Scaleway → AWS KMS → local. With none configured, encryption remains off.
+
+<Warning>
+  The `local` provider is for development only. Do not use `ENCRYPTION_MASTER_KEY` as your sole encryption backend in production — it stores the master key on the same machine as the data it protects.
+</Warning>
+
+## How envelope encryption works
+
+<Steps>
+  <Step title="Thread key generation">
+    When a new conversation thread is created, Ragen requests a fresh data encryption key (DEK) from your configured key provider. The provider returns both the plaintext DEK and a wrapped (encrypted) copy of that DEK.
+  </Step>
+  <Step title="Message encryption">
+    All message content written to that thread is encrypted using the plaintext DEK with AES-256-GCM. The plaintext DEK is held only in memory for the duration of the request and never written to disk.
+  </Step>
+  <Step title="Wrapped key storage">
+    The wrapped DEK is stored in `Thread.encryptedDek` in Postgres. To decrypt a thread later, Ragen unwraps the DEK using the key provider, then uses it to decrypt the message content.
+  </Step>
+  <Step title="Thread titles stay plaintext">
+    Thread titles are stored in plaintext deliberately so that title search continues to work. Content search over encrypted threads is title-only — a deliberate trade-off.
+  </Step>
+</Steps>
+
+## In-transit encryption
+
+TLS secures all connections to the application, terminated by your own ingress. Internal service-to-service calls are additionally authenticated with HMAC-signed short-lived tokens, so no internal component can be impersonated from within the network.
+
+## Impact on features
+
+Enabling encryption changes the behaviour of two features:
+
+<CardGroup cols={2}>
+  <Card title="Langfuse traces" icon="chart-bar">
+    With encryption on, `input` and `output` fields are omitted from Langfuse traces. Only tags, session ID, and model are recorded — message content is never sent to the tracing backend.
+  </Card>
+  <Card title="Content search" icon="magnifying-glass">
+    Search across encrypted threads matches on thread titles only. Message content is not searched whether or not it is encrypted.
+  </Card>
+</CardGroup>
+
+## Consciously opting out
+
+If you have evaluated the trade-offs and need to run a deployed environment without encryption — for example, during a migration — set `ALLOW_UNENCRYPTED=1`. This is a conscious, logged opt-out:
+
+```bash
+ALLOW_UNENCRYPTED=1
+```
+
+<Warning>
+  Setting `ALLOW_UNENCRYPTED=1` is logged as a `critical` severity `ENCRYPTION_REQUIREMENT_BYPASSED` security event each time the application starts. This event appears in your security event log and, if `SECURITY_ALERT_SEVERITY` is set to `critical`, triggers an email alert.
+</Warning>
+
+## Verifying encryption is active
+
+After configuring a key provider and restarting your deployment, confirm encryption is working by checking a newly created thread in Postgres:
+
+```sql
+SELECT id, encrypted_dek IS NOT NULL AS encrypted
+FROM threads
+ORDER BY created_at DESC
+LIMIT 5;
+```
+
+Rows where `encrypted_dek` is populated are encrypted. If `encrypted_dek` is null on new threads, the key provider configuration has not reached the process — recheck your environment variables and restart.
+
+## Encrypting existing threads
+
+If you enable encryption on a deployment with existing plaintext threads, use the **Encrypt All Threads** action in the admin panel (**Organizations → [org] → Settings**). This action is available to platform administrators only. It is idempotent and resumable — safe to run multiple times if interrupted.

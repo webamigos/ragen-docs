@@ -1,0 +1,79 @@
+---
+title: 'Key Concepts in Ragen AI'
+sidebarTitle: 'Overview'
+description: 'Understand projects, organizations, threads, and API keys — the core building blocks that shape every interaction you have with Ragen AI.'
+---
+
+Ragen AI organizes everything you do around a small set of core building blocks. Before you upload your first document or make your first API call, it helps to understand how projects, organizations, threads, and API keys relate to each other — and how each one shapes what you can see and do.
+
+## Projects (Assistants)
+
+A **project** — called an **assistant** in the API — is the central unit of work in Ragen AI. Think of it as a self-contained knowledge base that holds all the documents, instructions, and conversation history for one use case.
+
+Every project contains three things:
+
+<CardGroup cols={3}>
+  <Card title="Documents" icon="file-lines">
+    Files you upload, processed into searchable chunks and stored in the vector database for retrieval.
+  </Card>
+  <Card title="Instructions" icon="sliders">
+    A custom system prompt that tells the AI how to behave — its tone, focus area, and any rules it should follow.
+  </Card>
+  <Card title="Assistant ID" icon="fingerprint">
+    A unique identifier you pass as `assistant_id` in API requests to route questions to this project's knowledge base.
+  </Card>
+</CardGroup>
+
+When someone asks a question, Ragen AI searches that project's document collection for relevant chunks, then uses them as context to generate a grounded, cited answer.
+
+### Supported file types
+
+You can upload any of the following file formats to a project:
+
+| Format | Extensions |
+|--------|-----------|
+| PDF | `.pdf` |
+| Word document | `.docx` |
+| E-book | `.epub` |
+| Markdown | `.md`, `.mdx` |
+| Plain text | `.txt` |
+| Spreadsheet | `.csv`, `.xlsx` |
+| Subtitle | `.srt` |
+| Images | `.jpg`, `.jpeg`, `.png`, `.webp` |
+| Web page | URL (fetched at upload time) |
+
+## Organizations
+
+An **organization** is the top-level container that holds everything — members, projects, API keys, and connectors to external services. You always act within an organization, and your permissions inside it determine what you can see and manage.
+
+Each organization has:
+
+- **Members** assigned one of three roles: `owner`, `admin`, or `member`
+- **Projects** with their own independent knowledge bases
+- **API keys** for programmatic access, each scoped to the organization
+- **Connectors** to external services such as Google Drive and HubSpot
+
+For a full breakdown of what each role can do, see [Access Control](/concepts/access-control).
+
+## Threads
+
+A **thread** is a conversation — an ordered list of user messages and assistant responses. Threads are scoped to an organization, so every thread in your org is accessible to organization admins regardless of which project it belongs to.
+
+Threads serve two purposes:
+
+1. **Interactive conversations** — created through the Ragen AI app when you chat with an assistant directly.
+2. **API threads** — when a key's debug mode is on, every API request automatically saves its full exchange as a thread you can inspect under the **API threads** tab.
+
+## API Keys
+
+An API key grants programmatic access to Ragen AI on behalf of one organization and one default project. You use it in the `Authorization: Bearer <key>` header on every request.
+
+Key behaviours to know:
+
+- **Org boundary**: a key can never cross its organization. Cross-organization requests are always rejected.
+- **Default project**: operations that need a project (such as chat and file upload) use the key's bound project unless you specify a different `assistant_id`.
+- **Debug mode**: toggle this on during development to save every API conversation as a thread you can inspect. Turn it off once your integration is stable to avoid unnecessary storage growth.
+
+<Note>
+  Try Ragen AI without installing anything at **[demo.ragen.ai](https://demo.ragen.ai)**. The demo environment is a fully functional instance where you can upload documents, create projects, and test the API before committing to a self-hosted deployment.
+</Note>

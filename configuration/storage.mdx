@@ -1,0 +1,144 @@
+---
+title: 'Configuring Local and S3-Compatible Storage in Ragen AI'
+sidebarTitle: 'Storage'
+description: 'Store uploaded documents on the local filesystem by default, or switch to any S3-compatible provider for multi-replica and production deployments.'
+---
+
+Ragen stores every file you upload — documents, attachments, and parsed assets — using a pluggable storage backend. By default, files land on the local filesystem so a fresh installation works with no cloud account. When you are ready to run more than one replica or deploy to production, switching to S3-compatible object storage takes four environment variables.
+
+## Local Storage
+
+When `STORAGE_PROVIDER` is unset or set to `local`, Ragen writes files to the path defined by `STORAGE_LOCAL_PATH`.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `STORAGE_PROVIDER` | Optional | `local` | Storage backend selector |
+| `STORAGE_LOCAL_PATH` | Optional | `./data/storage` | Filesystem path for uploaded files |
+
+```bash title=".env"
+STORAGE_PROVIDER=local
+STORAGE_LOCAL_PATH=/data/storage   # mount a Docker volume here for persistence
+```
+
+Local storage is well suited for single-instance development and testing, or for a single-node self-hosted deployment backed by a persistent mounted volume.
+
+<Warning>
+  Use S3 for any deployment that runs more than one container replica. With local storage, the worker writes uploaded files to its own container's disk and the web application cannot read them. A container restart will also lose any files that are not on a mounted volume. Ragen logs a startup warning when `STORAGE_PROVIDER=local` is combined with `TARGET_ENV=production` or `staging`.
+</Warning>
+
+## S3-Compatible Storage
+
+Set `STORAGE_PROVIDER=s3` to use any S3-compatible object store. Ragen uses the `S3_` prefix for all storage credentials — intentionally different from `AWS_` — so you can run Bedrock or KMS at the same time without the two credential sets conflicting.
+
+<Note>
+  All variables in this section use the `S3_` prefix, not `AWS_`. The `AWS_` prefix is reserved for real AWS services like Bedrock and KMS. This means you can use Scaleway Object Storage for files while simultaneously using AWS Bedrock for model calls, without either credential set interfering with the other.
+</Note>
+
+### Required Variables
+
+| Variable | Description |
+|---|---|
+| `S3_BUCKET_NAME` | Name of the bucket to store files in |
+| `S3_REGION` | Bucket region (use `auto` for Cloudflare R2) |
+| `S3_ACCESS_KEY_ID` | Access key ID |
+| `S3_SECRET_ACCESS_KEY` | Secret access key |
+
+### Optional Variables
+
+| Variable | Description |
+|---|---|
+| `S3_ENDPOINT_URL` | Custom endpoint URL for non-AWS providers. Leave unset for real AWS S3. |
+| `S3_SESSION_TOKEN` | Session token for temporary credentials |
+| `S3_FORCE_PATH_STYLE` | Set to `1` for providers that require path-style addressing (e.g. MinIO, Scaleway) |
+
+### Configuration by Provider
+
+<Tabs>
+  <Tab title="AWS S3">
+    Leave `S3_ENDPOINT_URL` unset to use AWS's default regional endpoint.
+
+    ```bash title=".env"
+    STORAGE_PROVIDER=s3
+    S3_BUCKET_NAME=my-ragen-bucket
+    S3_REGION=eu-central-1
+    S3_ACCESS_KEY_ID=AKIA...
+    S3_SECRET_ACCESS_KEY=...
+    ```
+  </Tab>
+  <Tab title="Scaleway Object Storage">
+    Scaleway's wildcard TLS certificate (`*.s3.<region>.scw.cloud`) does not cover bucket names that contain dots, so `S3_FORCE_PATH_STYLE=1` is required.
+
+    ```bash title=".env"
+    STORAGE_PROVIDER=s3
+    S3_BUCKET_NAME=my-ragen-bucket
+    S3_REGION=pl-waw
+    S3_ENDPOINT_URL=https://s3.pl-waw.scw.cloud
+    S3_ACCESS_KEY_ID=SCW...
+    S3_SECRET_ACCESS_KEY=...
+    S3_FORCE_PATH_STYLE=1
+    ```
+
+    Available regions: `pl-waw` (Warsaw), `fr-par` (Paris), `nl-ams` (Amsterdam).
+  </Tab>
+  <Tab title="Cloudflare R2">
+    Use `S3_REGION=auto` and your R2 account endpoint.
+
+    ```bash title=".env"
+    STORAGE_PROVIDER=s3
+    S3_BUCKET_NAME=my-ragen-bucket
+    S3_REGION=auto
+    S3_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+    S3_ACCESS_KEY_ID=...
+    S3_SECRET_ACCESS_KEY=...
+    ```
+  </Tab>
+  <Tab title="MinIO / Ceph">
+    Point `S3_ENDPOINT_URL` at your self-hosted endpoint and enable path-style addressing.
+
+    ```bash title=".env"
+    STORAGE_PROVIDER=s3
+    S3_BUCKET_NAME=my-ragen-bucket
+    S3_REGION=us-east-1
+    S3_ENDPOINT_URL=https://minio.internal.example.com
+    S3_ACCESS_KEY_ID=...
+    S3_SECRET_ACCESS_KEY=...
+    S3_FORCE_PATH_STYLE=1
+    ```
+  </Tab>
+  <Tab title="LocalStack">
+    Use LocalStack for local S3 emulation during development.
+
+    ```bash title=".env"
+    STORAGE_PROVIDER=s3
+    S3_BUCKET_NAME=my-ragen-bucket
+    S3_REGION=us-east-1
+    S3_ENDPOINT_URL=http://localhost:4566
+    S3_ACCESS_KEY_ID=test
+    S3_SECRET_ACCESS_KEY=test
+    S3_FORCE_PATH_STYLE=1
+    ```
+  </Tab>
+</Tabs>
+
+## Compatible Providers
+
+<CardGroup cols={2}>
+  <Card title="AWS S3" icon="cloud">
+    The reference implementation. Leave `S3_ENDPOINT_URL` unset.
+  </Card>
+  <Card title="Cloudflare R2" icon="cloud">
+    Zero egress fees. Set `S3_REGION=auto` and your account endpoint URL.
+  </Card>
+  <Card title="Scaleway Object Storage" icon="cloud">
+    Used in the default Ragen deployment. Requires `S3_FORCE_PATH_STYLE=1`.
+  </Card>
+  <Card title="MinIO" icon="server">
+    Self-hosted S3-compatible storage. Requires `S3_FORCE_PATH_STYLE=1`.
+  </Card>
+  <Card title="Ceph" icon="server">
+    Distributed object storage for on-premise deployments. Requires `S3_FORCE_PATH_STYLE=1`.
+  </Card>
+  <Card title="LocalStack" icon="laptop">
+    Local AWS emulation for development and testing.
+  </Card>
+</CardGroup>

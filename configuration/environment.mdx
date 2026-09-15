@@ -1,0 +1,236 @@
+---
+title: 'Complete Environment Variable Reference for Ragen AI'
+sidebarTitle: 'Environment'
+description: 'Configure every aspect of Ragen AI through environment variables — storage, encryption, mail, models, auth, and feature flags, all in one place.'
+---
+
+Environment variables are the primary configuration mechanism for Ragen AI. Every service in the stack — `apps/web`, `apps/api`, and `apps/worker` — reads its configuration from the process environment at boot, and the same variable names apply whether you are running locally with a `.env` file or deploying to a container orchestrator. A **required** variable is required only once you have chosen a provider that needs it; everything else has a working default in code.
+
+## Provider Settings
+
+One variable selects an implementation for each provider, and that choice determines which additional variables you must set.
+
+<Tabs>
+  <Tab title="Storage">
+    Choose your storage backend with `STORAGE_PROVIDER`, which defaults to `local`.
+
+    <Tabs>
+      <Tab title="local (default)">
+        Files are written to the container filesystem. `STORAGE_LOCAL_PATH` defaults to `./data/storage`, so nothing is mandatory — but every process that touches files needs access to the same mounted volume.
+
+        | Variable | Required | Default | Description |
+        |---|---|---|---|
+        | `STORAGE_LOCAL_PATH` | Optional | `./data/storage` | Filesystem path where uploaded files are stored |
+
+        ```bash
+        STORAGE_PROVIDER=local
+        STORAGE_LOCAL_PATH=/data/storage
+        ```
+      </Tab>
+      <Tab title="s3">
+        Any S3-compatible object store. Leave `S3_ENDPOINT_URL` unset for real AWS S3, or set it to point at Cloudflare R2, Scaleway, MinIO, or Ceph.
+
+        | Variable | Required | Description |
+        |---|---|---|
+        | `S3_BUCKET_NAME` | **Required** | Name of the bucket to store files in |
+        | `S3_REGION` | **Required** | Region (use `auto` for Cloudflare R2) |
+        | `S3_ACCESS_KEY_ID` | **Required** | Access key ID |
+        | `S3_SECRET_ACCESS_KEY` | **Required** | Secret access key |
+        | `S3_ENDPOINT_URL` | Optional | Custom endpoint for non-AWS providers |
+        | `S3_SESSION_TOKEN` | Optional | Temporary credential session token |
+        | `S3_FORCE_PATH_STYLE` | Optional | Set to `1` for stores that require path-style addressing |
+
+        ```bash
+        STORAGE_PROVIDER=s3
+        S3_BUCKET_NAME=my-ragen-bucket
+        S3_REGION=us-east-1
+        S3_ACCESS_KEY_ID=...
+        S3_SECRET_ACCESS_KEY=...
+        # S3_ENDPOINT_URL=https://...  # omit for real AWS S3
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+  <Tab title="Encryption">
+    Choose your encryption backend with `ENCRYPTION_PROVIDER`. When unset, Ragen auto-detects from whichever credentials are present, in priority order: Scaleway → KMS → local.
+
+    <Warning>
+      Encryption is opt-in and off by default in local development. On staging and production (`TARGET_ENV=staging` or `production`), a deployment with no encryption provider configured will refuse to start unless you set `ALLOW_UNENCRYPTED=1` — which is logged as a critical security event. Set a provider before going live.
+    </Warning>
+
+    <Tabs>
+      <Tab title="scaleway">
+        Scaleway Key Manager. Reuses `SCW_API_KEY`, so one IAM key covers both encryption and Scaleway-hosted model/rerank calls.
+
+        | Variable | Required | Description |
+        |---|---|---|
+        | `SCW_KEY_MANAGER_KEY_ID` | **Required** | UUID of the AES-256-GCM key in Scaleway Console |
+        | `SCW_API_KEY` | **Required** | Scaleway IAM API key |
+        | `SCW_KEY_MANAGER_REGION` | Optional | Key Manager region (e.g. `fr-par`) |
+
+        ```bash
+        ENCRYPTION_PROVIDER=scaleway
+        SCW_KEY_MANAGER_KEY_ID=11111111-2222-3333-4444-555555555555
+        SCW_KEY_MANAGER_REGION=fr-par
+        SCW_API_KEY=your-scaleway-api-key
+        ```
+      </Tab>
+      <Tab title="kms">
+        AWS Key Management Service.
+
+        | Variable | Required | Description |
+        |---|---|---|
+        | `AWS_KMS_KEY_ID` | **Required** | ARN or ID of the KMS key |
+        | `AWS_DEFAULT_REGION` | Optional | AWS region |
+        | `AWS_ENDPOINT_URL` | Optional | Custom KMS endpoint |
+
+        ```bash
+        ENCRYPTION_PROVIDER=kms
+        AWS_KMS_KEY_ID=arn:aws:kms:eu-central-1:123456789:key/your-key-id
+        AWS_DEFAULT_REGION=eu-central-1
+        ```
+      </Tab>
+      <Tab title="local">
+        A master key held in the environment. Use this for on-premise deployments without an external KMS.
+
+        | Variable | Required | Description |
+        |---|---|---|
+        | `ENCRYPTION_MASTER_KEY` | **Required** | 64-character hex string (32 bytes) |
+
+        ```bash
+        ENCRYPTION_PROVIDER=local
+        # Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+        ENCRYPTION_MASTER_KEY=a1b2c3...
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+  <Tab title="Reranker">
+    Post-retrieval reranking sharpens search results. Choose the provider with `RERANK_PROVIDER`. Reranking is off by default — enable it with `FEATURE_FLAG_RERANKING=1`.
+
+    <Tabs>
+      <Tab title="scaleway (default)">
+        Scaleway's `/v1/rerank` endpoint, called directly (bypasses LiteLLM). Reuses `SCW_API_KEY`.
+
+        | Variable | Required | Description |
+        |---|---|---|
+        | `SCW_API_BASE` | **Required** | Scaleway API base URL (format: `https://api.scaleway.ai/<project-id>/v1`) |
+        | `SCW_API_KEY` | **Required** | Scaleway IAM API key |
+        | `RERANK_MODEL` | Optional | Rerank model name (default: `qwen3-embedding-8b`) |
+
+        ```bash
+        RERANK_PROVIDER=scaleway
+        SCW_API_BASE=https://api.scaleway.ai/YOUR_PROJECT_ID/v1
+        SCW_API_KEY=your-scaleway-api-key
+        RERANK_MODEL=qwen3-embedding-8b
+        ```
+      </Tab>
+      <Tab title="cohere">
+        Cohere Rerank v3.5 through the LiteLLM proxy (routed to AWS Bedrock). Requires valid AWS credentials, the `bedrock:Rerank` IAM permission, and `cohere-rerank-v3-5` uncommented in `infra/litellm/config.yaml`.
+
+        | Variable | Required | Description |
+        |---|---|---|
+        | `RERANK_MODEL` | Optional | Defaults to `cohere-rerank-v3-5` |
+
+        ```bash
+        RERANK_PROVIDER=cohere
+        # AWS credentials must already be set for Bedrock
+        RERANK_MODEL=cohere-rerank-v3-5
+        ```
+
+        <Note>
+          `cohere-rerank-v3-5` ships commented out in `infra/litellm/config.yaml`. Uncomment it and supply AWS credentials before enabling this provider.
+        </Note>
+      </Tab>
+    </Tabs>
+  </Tab>
+  <Tab title="Mail">
+    Choose your mail transport with `MAIL_PROVIDER`. When unset, Ragen auto-detects: `RESEND_API_KEY` wins, then `SMTP_HOST`, then `console` outside production.
+
+    <Tabs>
+      <Tab title="resend">
+        Resend transactional email.
+
+        | Variable | Required | Description |
+        |---|---|---|
+        | `RESEND_API_KEY` | **Required** | Resend API key |
+        | `RESEND_DEFAULT_SEGMENT_ID` | Optional | Resend audience segment ID |
+
+        ```bash
+        MAIL_PROVIDER=resend
+        RESEND_API_KEY=re_...
+        ```
+      </Tab>
+      <Tab title="smtp">
+        Any SMTP relay. Only `SMTP_HOST` is required; `SMTP_PORT` defaults to 587. Authentication is configured only when `SMTP_USER` is set.
+
+        | Variable | Required | Description |
+        |---|---|---|
+        | `SMTP_HOST` | **Required** | SMTP server hostname |
+        | `SMTP_PORT` | Optional | SMTP port (default: `587`) |
+        | `SMTP_USER` | Optional | SMTP username |
+        | `SMTP_PASS` | Optional | SMTP password |
+        | `SMTP_SECURE` | Optional | Use TLS (set to `true` for port 465) |
+
+        ```bash
+        MAIL_PROVIDER=smtp
+        SMTP_HOST=smtp.example.com
+        SMTP_PORT=587
+        SMTP_USER=sender@example.com
+        SMTP_PASS=your-password
+        ```
+      </Tab>
+      <Tab title="console">
+        Writes the mail message (including links) to the application log instead of sending it. Ideal for local development and for production installations where an administrator creates every account manually.
+
+        No additional variables required.
+
+        ```bash
+        MAIL_PROVIDER=console
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+</Tabs>
+
+## Core Settings
+
+These variables apply regardless of which providers you have chosen.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DATABASE_URL` | **Required** | — | PostgreSQL connection URL |
+| `DATABASE_DIRECT_URL` | Optional | — | Direct URL bypassing a connection pooler (used for migrations) |
+| `LITELLM_PROXY_URL` | **Required** | `http://localhost:4000` | URL of the LiteLLM proxy; every model call routes through here |
+| `LITELLM_MASTER_KEY` | Optional | — | Auth key for the LiteLLM proxy (required in deployed environments) |
+| `QDRANT_URL` | Optional | `http://localhost:6333` | Qdrant vector store URL |
+| `QDRANT_API_KEY` | Optional | — | Qdrant API key (required in production) |
+| `REDIS_URL` | Optional* | `redis://localhost:56379` | Redis connection URL (*required by `apps/worker`; optional for `apps/web`) |
+| `TEMPORAL_SERVER_ADDRESS` | Optional | `localhost:7233` | Temporal workflow server address |
+| `TEMPORAL_NAMESPACE` | Optional | `local` | Temporal namespace |
+
+## Auth Settings
+
+| Variable | Required | Description |
+|---|---|---|
+| `BETTER_AUTH_SECRET` | **Required** | Secret key for Better Auth session signing. Generate with `openssl rand -hex 32`. |
+| `BETTER_AUTH_URL` | **Required** | Public URL of this installation (e.g. `https://app.example.com`). Used in all outbound email links. |
+| `SESSION_AUTH_SECRET` | **Required** | Shared secret for issuing short-lived session tokens between `apps/web` and `apps/api`. Must match in both services. |
+
+<Note>
+  Generate secret values with:
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ```
+</Note>
+
+## Feature Flags
+
+Feature flags let you enable optional capabilities that are off by default. Set any of these to `1` to enable.
+
+| Variable | Default | Description |
+|---|---|---|
+| `FEATURE_FLAG_RERANKING` | Off | Enable post-retrieval reranking. Also requires provider credentials (`SCW_API_BASE` + `SCW_API_KEY` for Scaleway, or AWS credentials for Cohere). |
+| `FEATURE_FLAG_PII_MASKING` | Off | Enable Presidio PII masking. Requires `PRESIDIO_ANALYZER_URL`. Fails closed on error — unmasked PII never reaches the LLM. |
+| `FEATURE_FLAG_DOC_SUMMARIES` | Off | Generate AI summaries when documents are ingested. Uses `SUMMARY_MODEL`. |
+| `DOCLING_STRICT` | Off | Fail the ingest job instead of falling back to a legacy PDF loader that sends documents to an external model. Set to `1` for air-gapped deployments. |

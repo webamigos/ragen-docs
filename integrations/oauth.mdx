@@ -1,0 +1,116 @@
+---
+title: 'Configure OAuth Sign-In and Authentication in Ragen AI'
+sidebarTitle: 'OAuth Sign-In'
+description: 'Configure email, magic-link, and Google OAuth sign-in for the Ragen main app and admin panel, including allowed domain restrictions.'
+---
+
+Ragen supports email/password and magic-link sign-in for the main application, and adds Google OAuth as an optional method for the admin panel. Understanding which sign-in method applies to which surface — and how it differs from the OAuth used to connect external services — saves time when configuring a new installation or diagnosing a login problem.
+
+## Sign-in methods by surface
+
+| Surface | Methods | Notes |
+|---|---|---|
+| Main app (`:3000`) | Email + password, magic link | No social sign-in — not unconfigured, not built |
+| Admin panel (`:3200`) | Email + password, Google | Google requires `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` |
+
+The main app has no Google button and no social sign-in of any kind. Setting `GOOGLE_CLIENT_ID` in your environment does not add a sign-in button to `:3000`. SSO (SAML, Entra ID, SCIM directory sync) and MFA are not yet available on either surface.
+
+The admin panel shows a **Sign in with Google** button only when both credentials are present in the environment. A panel showing only the password form is configured that way — it isn't broken.
+
+<Note>
+  SSO (SAML, Entra ID, SCIM) and MFA are not yet built into Ragen. Today, authentication is email/password with per-organisation membership, plus opaque API keys for programmatic access. This page will be updated when those features ship.
+</Note>
+
+## Admin-panel sign-in vs connector OAuth
+
+Ragen contains two separate OAuth flows. They use the same two environment variable names but are completely independent of each other.
+
+| | Admin-panel sign-in | Connector OAuth |
+|---|---|---|
+| Purpose | Operator signs into `:3200` | End user links their Google account as a data source |
+| Who authenticates | A platform administrator | A regular user |
+| Secret location | `apps/admin` | Ragen Token Vault |
+| Redirect URI | `{admin URL}/api/auth/callback/google` | `{vault URL}/v1/oauth/google/callback` |
+| Scopes | `openid`, `email`, `profile` | Calendar / Drive / Analytics / Ads scopes |
+| Where tokens land | The `accounts` table | The vault, encrypted with AES-256-GCM |
+
+Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pair of credentials in the shared root `.env.local`, both features point at the same Google Cloud client.
+
+<Warning>
+  Choose one approach deliberately: either register both redirect URIs on a single Google Cloud client and request all needed scopes, or use two separate Google Cloud clients with their credentials in separate environment files. Mixing them up silently points one feature at the wrong client and produces confusing errors.
+</Warning>
+
+## Configuring Google sign-in for the admin panel
+
+<Steps>
+  <Step title="Create an OAuth client in Google Cloud Console">
+    Open the [Google Cloud Console](https://console.cloud.google.com/), pick or create a project, then:
+
+    1. Go to **APIs & Services → OAuth consent screen**. Choose **Internal** if all admins are in your Google Workspace (skips verification). Choose **External** otherwise, and add each administrator as a test user while the app is unpublished.
+    2. Go to **APIs & Services → Credentials → Create credentials → OAuth client ID**, application type **Web application**.
+    3. Under **Authorized redirect URIs**, add the admin panel's callback:
+
+    ```
+    http://localhost:3200/api/auth/callback/google
+    https://admin.example.com/api/auth/callback/google
+    ```
+
+    Add every origin your admin panel is reachable on. Google matches URIs exactly — a trailing slash, wrong scheme, or missing subdomain all produce `redirect_uri_mismatch`.
+
+    No scopes need configuring on the client. Better Auth requests `openid`, `email`, and `profile` by default, and those three require no consent-screen review.
+  </Step>
+  <Step title="Set the credentials">
+    Add the credentials to `apps/admin/.env.local` (prefer this over the shared root `.env.local` if connector OAuth is also in use):
+
+    ```bash
+    GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+    GOOGLE_CLIENT_SECRET="your-client-secret"
+    ```
+
+    Also confirm that `BETTER_AUTH_URL` matches the origin the panel is served on. If the panel is at `https://admin.example.com` but `BETTER_AUTH_URL` is `http://localhost:3200`, Google receives a localhost callback and fails with a redirect URI mismatch.
+  </Step>
+  <Step title="Set the allowed email domain">
+    ```bash
+    ADMIN_ALLOWED_EMAIL_DOMAIN="example.com"
+    ```
+
+    This restricts which email domain may create a **new** account through Google sign-in. The default is `webamigos.pl`, which is wrong for every other installation — set it to your domain, or set it to an empty string to allow any domain.
+
+    This gate applies only to account *creation*. Existing accounts are unaffected when you change it. The real access control is `User.role = 'admin'`, which is re-read from the database on every request.
+  </Step>
+  <Step title="Verify the configuration">
+    Restart the admin panel so it picks up the new environment variables. Open `http://localhost:3200` (or your deployed URL). The **Sign in with Google** button appears only when both credentials have reached the process.
+
+    Complete the sign-in flow and expect one of these outcomes:
+
+    | What you see | What it means |
+    |---|---|
+    | The admin dashboard | Everything is working correctly |
+    | No Google button | `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` is missing from the panel's environment |
+    | "That account is not a platform administrator" | OAuth worked, but the account doesn't have `User.role = 'admin'` — grant it from **Users** |
+    | A Google error page | The OAuth client is misconfigured — see common errors below |
+  </Step>
+</Steps>
+
+## Common errors
+
+<Accordion title="redirect_uri_mismatch">
+  The callback URI Google received doesn't match any URI registered on the OAuth client. Compare the URI character by character. Common causes:
+
+  - `BETTER_AUTH_URL` doesn't match the origin the browser is using
+  - The redirect URI in Google Cloud Console has a trailing slash but the one Ragen sends doesn't (or vice versa)
+  - You registered `http://` but the panel is served over `https://`
+  - The wrong subdomain — `localhost` instead of `admin.example.com`
+</Accordion>
+
+<Accordion title="invalid_client">
+  A credential is mistyped, revoked, or belongs to a different Google Cloud project. This also happens if the connector-OAuth credentials were pasted in by mistake. Note that an *unset* variable doesn't produce this error — the sign-in button simply won't appear.
+</Accordion>
+
+<Accordion title="access_blocked / has not completed verification">
+  Your OAuth consent screen is set to **External** and is unpublished. The account trying to sign in isn't listed as a test user. Add the account as a test user in **APIs & Services → OAuth consent screen → Test users**, or switch the consent screen type to **Internal** if all users are in your Google Workspace.
+</Accordion>
+
+<Accordion title="Sign-in completes but immediately returns to the login page">
+  One of two causes: the new account was refused by `ADMIN_ALLOWED_EMAIL_DOMAIN`, or the account exists but doesn't have the platform admin role. Check **Incidents** in the admin panel for the specific refusal reason, then either update the allowed domain setting or grant the platform role from **Users**.
+</Accordion>

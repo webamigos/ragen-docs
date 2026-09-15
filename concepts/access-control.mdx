@@ -1,0 +1,78 @@
+---
+title: 'Access Control and Permissions in Ragen AI'
+sidebarTitle: 'Access Control'
+description: 'Understand org roles, platform roles, document permissions, and how Ragen AI enforces access at retrieval time — not just in the UI.'
+---
+
+Ragen AI enforces permissions at two independent layers — what you can do in the application, and what documents the retrieval pipeline will surface in your answers. A document that you do not have permission to view will never appear in an answer, even when you query through the API directly. This is not a UI restriction; it is enforced inside the vector store on every search.
+
+## Two independent role systems
+
+Ragen AI has two role systems that operate completely independently. Confusing them is the most common way to misread what someone can or cannot do.
+
+<CardGroup cols={2}>
+  <Card title="Organization Role" icon="building">
+    Controls what you can do **inside one organization**. Stored as one row per person per organization. Granted by that organization's owner or admin.
+  </Card>
+  <Card title="Platform Role" icon="shield-halved">
+    Controls access to the **admin panel** — a separate application. Applies across the entire installation. Granted by another platform administrator.
+  </Card>
+</CardGroup>
+
+Someone can be an organization owner and have no platform role at all — that is the normal state for every customer account. Someone can be a platform administrator without belonging to the organization they are inspecting, which is what makes incident response and support possible.
+
+### Organization roles
+
+Your organization role determines what you can see and manage within a single organization.
+
+| Permission | member | admin | owner |
+|-----------|--------|-------|-------|
+| Use assistants and upload to your own knowledge base | ✓ | ✓ | ✓ |
+| See every document in the organization, not just your own | | ✓ | ✓ |
+| Invite and remove members, change roles, edit org settings | | ✓ | ✓ |
+| Transfer or delete the organization | | | ✓ |
+
+`admin` and `owner` have identical day-to-day permissions. The only difference is that only the `owner` can dispose of the organization itself — transfer it to another owner or delete it entirely.
+
+### Platform role
+
+The platform role (`admin` or `user`) controls access to the admin panel — a separate application used for cross-organization management. Platform admins can view usage across every organization, manage disk ceilings, revoke API keys, and access the activity log. Having a platform role does **not** grant membership in any organization and does not allow reading another organization's documents through the main application.
+
+## Document permissions
+
+Within an organization, individual files and folders carry their own visibility rules. Permissions are set at creation time based on ownership, and can be extended through explicit sharing.
+
+| Scenario | Who can see |
+|----------|-------------|
+| Org-wide file (no owner set) | All organization members |
+| User-owned file | File owner + org admins + anyone with an explicit share |
+| Team folder | Team members + org admins |
+| Shared file or folder | Users and teams with explicit permissions |
+
+You can grant access at two levels:
+
+- **View** — the document is included in retrieval results and the user can read its content
+- **Full access** — the user can also edit, move, and delete the document
+
+Folder permissions cascade automatically: granting access to a folder extends to all files and sub-folders inside it.
+
+## API key scope
+
+Each API key is bound to one organization and one default project. The key cannot cross its organization boundary — cross-organization requests are always rejected.
+
+| Operation | Scope | Notes |
+|-----------|-------|-------|
+| `POST /v1/chat/completions`, `POST /v1/chat` | Project | Retrieval runs against the bound project's knowledge base |
+| `POST /v1/files`, `GET/DELETE /v1/files[/:id]` | Project | Files are owned by the bound project |
+| `POST/GET/PATCH/DELETE /v1/assistants[/:id]` | Organization | Lists every project in the org; cannot self-delete the key's bound project |
+| `POST/GET/PATCH/DELETE /v1/threads[/:id]` + messages | Organization | Lists every thread in the org; creates in the bound project when no `assistant_id` is given |
+
+### Debug mode
+
+Each API key has an optional **debug mode** toggle, off by default. When enabled, every API request made with that key automatically saves the full conversation — user message and assistant response — as a thread in the **API threads** tab of the bound project.
+
+Use debug mode while building and testing integrations to inspect exactly what the API received and responded without adding logging to your own code. Disable it once your integration is stable — debug mode saves every conversation to the database and increases storage usage over time.
+
+<Warning>
+  SSO (SAML/OAuth single sign-on) and MFA (multi-factor authentication) are not yet available in Ragen AI. All authentication currently uses email and password. Follow the [roadmap](/roadmap) for updates on these features.
+</Warning>

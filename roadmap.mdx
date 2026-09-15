@@ -1,0 +1,86 @@
+---
+title: 'Ragen AI Roadmap: Current and Planned Upcoming Features'
+sidebarTitle: 'Roadmap'
+description: 'Explore what Ragen AI is actively building right now, what is planned for the next milestone, what comes later, and what is out of scope.'
+---
+
+Ragen is actively developed, and this page shows the shape of what is coming — both what is being built right now and what is planned further out. Nothing here carries a release date. Open work lives in [GitHub Issues](https://github.com/webamigos/RagenAI/issues), and this page changes when a real install needs something that wasn't anticipated.
+
+## Choosing Your Own Infrastructure
+
+Three parts of Ragen are things you should be able to pick rather than inherit: what runs background jobs, what stores vectors, and what parses documents. Today each is a single choice baked into the stack. The next set of changes puts a seam in front of each one and adds a second implementation behind it.
+
+<Note>
+  Nothing is being taken away. Temporal stays a supported runtime, Qdrant stays the default vector store, and Docling stays the default parser. If you change nothing, nothing changes.
+</Note>
+
+| Concern | Today | Also Available | What the Alternative Costs You |
+|---|---|---|---|
+| Background jobs | Temporal | BullMQ on Redis | A crashed job re-runs from the start instead of resuming |
+| Vector store | Qdrant | `pgvector`, in the database you already run | A shared failure domain, and different retrieval numbers |
+| Document parsing | Docling (self-hosted) | Mistral Document AI (hosted) | **Your documents leave your deployment** |
+
+Two things worth understanding before assembling the smallest possible install:
+
+- **The hosted parser is a data-processing decision, not a performance one.** With `DOCUMENT_PARSER=mistral`, every ingested document is transmitted to a third party. That is the right trade for some deployments and disqualifying for others, which is why it will never be a silent fallback. See the [Security](/security) page.
+- **`pgvector` is a different retrieval system, not a port of the current one.** Qdrant scores sparse vectors server-side; Postgres has no equivalent, so the lexical half of retrieval changes and the results change with it. It ships with published measurements or it does not ship.
+
+The designs are public, one file each, in [`docs/specs/`](https://github.com/webamigos/RagenAI/tree/main/docs/specs) — they name the trade-offs and failure modes rather than only the upside.
+
+## Also Next
+
+These are the things actively in progress alongside the infrastructure flexibility work above.
+
+<CardGroup cols={2}>
+  <Card title="Python Client" icon="python">
+    The TypeScript SDK is official and published. Python is the language most people integrating the API are actually writing in, and a Python client is next.
+  </Card>
+  <Card title="Slack Integration" icon="slack">
+    An assistant you talk to in a channel, carrying the same retrieval-time access filter as the main application. This is distinct from the Slack connector that reads Slack as a source.
+  </Card>
+  <Card title="Verified Air-Gapped Config" icon="shield-check">
+    A local model, local embeddings, no outbound path, and a script that demonstrates it end to end. The pieces exist today — what's missing is a single verified configuration.
+  </Card>
+  <Card title="Microsoft Entra ID Sign-In" icon="microsoft">
+    SSO and MFA are not built yet. Entra ID over OAuth comes first, with SAML and SCIM to follow after.
+  </Card>
+  <Card title="docker compose up Demo" icon="docker">
+    A `docker compose up` command that starts Ragen with sample documents and sample questions already loaded, so evaluating Ragen doesn't begin with an empty knowledge base.
+  </Card>
+  <Card title="Microsoft 365 Connectors" icon="folder-open">
+    SharePoint, OneDrive, Outlook, and Teams connectors to bring your Microsoft 365 content into a Ragen knowledge base.
+  </Card>
+  <Card title="Feedback Collection" icon="thumbs-up">
+    In-application feedback on answers — the signal that retrieval quality work has been missing.
+  </Card>
+</CardGroup>
+
+## Later
+
+These are planned but not actively in progress. They are on the list because real installs will eventually need them.
+
+- **Permissions inherited from the source system**, so revocation in Google Drive or SharePoint takes effect without waiting for a re-index.
+- Confluence and Jira connectors.
+- Web search and multi-step research as opt-in tools, because some installs deliberately have no outbound path and that must remain possible.
+- Audit log and security-event export to a SIEM, with retention and automatic deletion.
+- Organization export, so leaving Ragen is a documented procedure.
+- Fail-closed encryption: refuse to start in production without a key provider, rather than starting and storing message content unencrypted.
+- MFA and passkeys.
+- Per-user permissions for individual MCP tools.
+- Usage drill-down from organization to team to user to request, with budget alerts.
+- A sizing guide, a versioning policy, and a CHANGELOG.
+
+## Not Planned
+
+Worth saying plainly, because it saves you evaluating Ragen for something it is not going to be.
+
+- **Image generation, advanced voice mode, a code interpreter.** Ragen answers from your documents. A general-purpose assistant is a different product, and there are good ones.
+- **A knowledge graph layer.** Improving retrieval that can be measured is the priority over adding a stage that cannot.
+
+## Follow Open Work
+
+All open issues are tracked publicly. If something you need isn't listed here, open an issue — this roadmap changes when a real install needs something unexpected.
+
+<Card title="GitHub Issues" icon="github" href="https://github.com/webamigos/RagenAI/issues">
+  Browse open issues, follow progress on active work, or file a new request.
+</Card>

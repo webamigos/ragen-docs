@@ -1,0 +1,126 @@
+---
+title: 'Authenticating Requests to the Ragen AI API'
+sidebarTitle: 'Authentication'
+description: 'Learn the API key format, how to pass the Authorization header, and how to handle common authentication errors in Ragen AI.'
+---
+
+Every request to the Ragen AI API must include a valid Bearer token. You generate that token by creating an API key in your instance's Settings dashboard — the key is scoped to your organization and a default project, and it cannot be retrieved after it is first shown to you.
+
+## Create an API key
+
+Follow these steps inside your Ragen instance to generate a new key:
+
+<Steps>
+  <Step title="Open API Keys">
+    Log in to your Ragen instance, then navigate to **Settings → API Keys**.
+  </Step>
+  <Step title="Create a new key">
+    Click **Create API Key**. Give the key a descriptive name and select the **project** (assistant) it should access by default.
+  </Step>
+  <Step title="Configure optional settings">
+    Enable **Debug mode** if you want API conversations saved as threads visible in the **API threads** tab. This is useful during development but should be disabled for production keys handling sensitive queries.
+  </Step>
+  <Step title="Copy the key immediately">
+    Click **Create**. The full key is displayed **only once**. Copy it now and store it in a secrets manager or environment variable — only a masked version is kept for display afterward.
+  </Step>
+</Steps>
+
+<Warning>
+  Your API key is a credential equivalent to a password. Never commit it to source control, log it, or expose it in client-side code. If a key is compromised, deactivate it immediately from **Settings → API Keys** and generate a replacement. Deactivated keys cannot be reactivated.
+</Warning>
+
+## API key format
+
+Every Ragen API key follows this structure:
+
+```
+Bearer sk-<keyId>.<secret>
+```
+
+The `sk-` prefix signals that the value is an API secret key. The `<keyId>` portion identifies the key record in the database; the `<secret>` portion is the credential that authenticates the request. Both parts are required.
+
+## Passing the Authorization header
+
+Include the key as a `Bearer` token in the `Authorization` header of every request:
+
+```bash
+curl -H "Authorization: Bearer sk-abc123.mysecret" \
+     https://your-ragen-instance/v1/chat/completions
+```
+
+### With the TypeScript SDK
+
+The SDK reads your key from the `RAGEN_API_KEY` environment variable by default, so you rarely need to pass it explicitly:
+
+```ts
+import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+// Reads RAGEN_API_KEY and RAGEN_BASE_URL from the environment
+const ragen = new Ragen({ apiKey: process.env.RAGEN_API_KEY });
+```
+
+You can also supply the key inline, but prefer the environment variable approach to avoid leaking credentials:
+
+```ts
+import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+const ragen = new Ragen({
+  apiKey:  'sk-abc123.mysecret',   // prefer process.env.RAGEN_API_KEY
+  baseURL: 'http://localhost:3001/v1',
+});
+```
+
+## API key scope
+
+An API key is bound to:
+
+- **One organization** — all operations act on resources within that organization.
+- **One default project** (`assistantId`) — chat completions use this project unless you pass a different `assistantId` per call.
+
+Keys do not grant cross-organization access, and they cannot be promoted to a different organization after creation.
+
+## Debug mode
+
+Each API key has an optional **Debug mode** toggle you can enable when creating the key. When debug mode is on:
+
+- Every API conversation is persisted as a thread on the server.
+- The saved threads appear in the **API threads** tab inside your Ragen instance.
+- This lets you inspect the full context, retrieved documents, and generated responses for each call.
+
+<Info>
+  Disable debug mode for production keys to avoid storing user conversations unnecessarily. You can create a separate debug key for development and keep your production key clean.
+</Info>
+
+## Error responses
+
+The API returns standard HTTP status codes for authentication failures. Handle these in your application to surface clear error messages to users:
+
+| Status | Meaning                                                                          |
+|--------|----------------------------------------------------------------------------------|
+| `401`  | Invalid or missing API key. Check that the `Authorization` header is present and the key is correctly formatted. |
+| `403`  | API key has been deactivated. Generate a new key in **Settings → API Keys**.     |
+| `429`  | Rate limit exceeded. The SDK retries automatically; raw HTTP callers should back off and retry with exponential delay. |
+
+### TypeScript SDK error classes
+
+The SDK surfaces authentication failures as typed errors you can catch and handle:
+
+```ts
+import { RagenAuthError, RagenError } from '@webamigos/ragen-sdk-ts';
+
+try {
+  await ragen.chat.completions.create({
+    assistantId: '123e4567-e89b-12d3-a456-426614174000',
+    messages:    [{ role: 'user', content: 'Hello' }],
+  });
+} catch (err) {
+  if (err instanceof RagenAuthError) {
+    // HTTP 401 or 403 — bad or deactivated API key
+    console.error('Authentication failed:', err.message);
+  } else if (err instanceof RagenError) {
+    console.error(err.status, err.code, err.message);
+  } else {
+    throw err;
+  }
+}
+```

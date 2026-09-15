@@ -1,0 +1,297 @@
+---
+title: 'Chat Completions — OpenAI-Compatible RAG Endpoint'
+sidebarTitle: 'Chat Completions'
+description: 'POST /v1/chat/completions — OpenAI-compatible endpoint that runs the full Ragen RAG pipeline with multi-turn support.'
+---
+
+The Chat Completions endpoint follows the OpenAI wire format exactly, which means any OpenAI-compatible client — the Python `openai` library, `openai-node`, LangChain, LlamaIndex — works with Ragen by pointing `base_url` at your instance. You get the full Ragen RAG pipeline (vector retrieval → reranking → generation) behind a familiar interface, plus multi-turn conversations, per-request model and temperature overrides, and opt-in usage tracking in streams.
+
+## Endpoint
+
+```
+POST /v1/chat/completions
+```
+
+**Authentication:**
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+API keys are scoped to your organization. Create and manage them under **Settings → API Keys** in the dashboard.
+
+<Tip>
+  Enable **debug mode** on your API key to save every API conversation as a thread visible under the project's **API threads** tab. This lets you inspect the full request and response during development without adding logging to your code.
+</Tip>
+
+## Request parameters
+
+<ParamField body="assistant_id" type="string" required>
+  The assistant (project) ID to query. Retrieve available IDs from `GET /v1/assistants` or from **Settings → Assistant settings** in the dashboard.
+</ParamField>
+
+<ParamField body="messages" type="array" required>
+  An array of 1–100 message objects in conversation order. Each message has a `role` (`user`, `assistant`, or `system`) and a `content` string. See [Message roles](#message-roles) below.
+</ParamField>
+
+<ParamField body="model" type="string">
+  Override the organization's default model for this request only. Must be a model available to your organization.
+</ParamField>
+
+<ParamField body="temperature" type="number">
+  Sampling temperature between 0 and 2. Overrides the organization default for this request.
+</ParamField>
+
+<ParamField body="max_tokens" type="integer">
+  Maximum number of tokens to generate, between 1 and 32,000.
+</ParamField>
+
+<ParamField body="reasoning_effort" type="string">
+  One of `"low"`, `"medium"`, or `"high"`. Forwarded to the model; only reasoning-capable models act on it (they default to `"medium"`).
+</ParamField>
+
+<ParamField body="stream" type="boolean" default="false">
+  When `true`, the response is delivered as a Server-Sent Events stream of `chat.completion.chunk` objects.
+</ParamField>
+
+<ParamField body="stream_options" type="object">
+  Streaming options. Pass `{ "include_usage": true }` to receive a trailing usage chunk after `[DONE]`. See [Including usage in streams](#including-usage-in-streams).
+</ParamField>
+
+### Message roles
+
+| Role | Purpose |
+|---|---|
+| `user` | The user's turn. The **last** user message is treated as the active question; earlier ones become conversation history. |
+| `assistant` | Prior assistant responses, included in conversation history. |
+| `system` | Per-request instructions merged on top of the project's own instructions — project owner's instructions take precedence, then the caller's. |
+
+### Rejected fields
+
+Most additional OpenAI parameters are accepted and silently ignored (e.g. `top_p`, `stop`, `seed`). The following three fields are **rejected with a 400 error** because silently dropping them would return a response that violates what you asked for:
+
+| Field | Why it's rejected |
+|---|---|
+| `response_format` | Accepting JSON mode and then returning prose would break any caller that runs `JSON.parse` on the result. |
+| `tools`, `tool_choice` | Tool selection is server-side in Ragen, configured per project via MCP integrations — not chosen per request. |
+
+`n` greater than `1` is also rejected: Ragen returns one choice, so asking for several would silently under-deliver.
+
+## Response
+
+### Non-streaming
+
+Returns a standard `chat.completion` object:
+
+```json
+{
+  "id": "chatcmpl-7a2b4c...",
+  "object": "chat.completion",
+  "created": 1744664400,
+  "model": "gpt-5.4",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Our refund policy allows returns within 30 days..."
+      },
+      "finish_reason": "stop",
+      "logprobs": null
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 128,
+    "completion_tokens": 42,
+    "total_tokens": 170
+  }
+}
+```
+
+### Streaming
+
+When `stream: true`, returns `text/event-stream` with a sequence of `chat.completion.chunk` objects terminated by `data: [DONE]`:
+
+```
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1744664400,"model":"gpt-5.4","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1744664400,"model":"gpt-5.4","choices":[{"index":0,"delta":{"content":"Our "},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1744664400,"model":"gpt-5.4","choices":[{"index":0,"delta":{"content":"refund policy..."},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":1744664400,"model":"gpt-5.4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+- The first chunk carries `delta.role: "assistant"` (OpenAI convention).
+- Content chunks carry `delta.content`.
+- The final chunk before `[DONE]` has an empty `delta` and `finish_reason: "stop"`.
+
+### Including usage in streams
+
+Pass `stream_options: { include_usage: true }` to receive a trailing usage chunk inserted between the final content chunk and `data: [DONE]`:
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion.chunk",
+  "created": 1744664400,
+  "model": "gpt-5.4",
+  "choices": [],
+  "usage": {
+    "prompt_tokens": 128,
+    "completion_tokens": 42,
+    "total_tokens": 170
+  }
+}
+```
+
+The empty `choices: []` signals that this chunk carries usage data only.
+
+## Examples
+
+<Tabs>
+  <Tab title="TypeScript SDK">
+    ```typescript
+    import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+    const ragen = new Ragen({ apiKey: process.env.RAGEN_API_KEY });
+
+    const completion = await ragen.chat.completions.create({
+      assistantId: 'YOUR_ASSISTANT_ID',
+      messages: [{ role: 'user', content: 'What is our refund policy?' }],
+    });
+
+    console.log(completion.choices[0].message.content);
+    ```
+
+    ```typescript
+    // Streaming with usage tracking
+    const stream = await ragen.chat.completions.create({
+      assistantId: 'YOUR_ASSISTANT_ID',
+      messages: [{ role: 'user', content: 'Summarize our onboarding process' }],
+      stream: true,
+      stream_options: { include_usage: true },
+    });
+
+    for await (const chunk of stream) {
+      if (chunk.choices[0]?.delta?.content) {
+        process.stdout.write(chunk.choices[0].delta.content);
+      }
+      if (chunk.usage) {
+        console.log(`\n\nUsed ${chunk.usage.total_tokens} tokens`);
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Python (openai SDK)">
+    Point the OpenAI SDK at your Ragen instance. Pass `assistant_id` in `extra_body` since it's a Ragen-specific extension.
+
+    ```python
+    import os
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url=os.environ["RAGEN_BASE_URL"],
+        api_key=os.environ["RAGEN_API_KEY"],
+    )
+
+    resp = client.chat.completions.create(
+        model="gpt-5.4",
+        messages=[
+            {"role": "user", "content": "What is our refund policy?"},
+        ],
+        extra_body={"assistant_id": "YOUR_ASSISTANT_ID"},
+    )
+    print(resp.choices[0].message.content)
+    ```
+
+    ```python
+    # Multi-turn conversation
+    resp = client.chat.completions.create(
+        model="gpt-5.4",
+        messages=[
+            {"role": "user", "content": "What is our refund policy?"},
+            {"role": "assistant", "content": "We offer refunds within 30 days of purchase."},
+            {"role": "user", "content": "What about digital products?"},
+        ],
+        extra_body={"assistant_id": "YOUR_ASSISTANT_ID"},
+    )
+
+    # Per-request system prompt
+    resp = client.chat.completions.create(
+        model="gpt-5.4",
+        messages=[
+            {"role": "system", "content": "Respond only in Polish."},
+            {"role": "user", "content": "What is our refund policy?"},
+        ],
+        extra_body={"assistant_id": "YOUR_ASSISTANT_ID"},
+    )
+    ```
+  </Tab>
+  <Tab title="curl">
+    ```bash
+    curl -X POST $RAGEN_BASE_URL/v1/chat/completions \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "assistant_id": "YOUR_ASSISTANT_ID",
+        "model": "gpt-5.4",
+        "messages": [
+          {"role": "user", "content": "What is our refund policy?"}
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Error codes
+
+Errors use the OpenAI error envelope, so existing SDK error-handling continues to work:
+
+```json
+{
+  "error": {
+    "message": "prompt too long",
+    "type": "invalid_request_error",
+    "code": "context_length_exceeded",
+    "param": null
+  }
+}
+```
+
+| Status | `type` | Meaning |
+|---|---|---|
+| `400` | `invalid_request_error` | Malformed body, validation failure, or prompt too long |
+| `401` | `authentication_error` | Missing or invalid API key |
+| `403` | `permission_error` | Key deactivated or missing scope |
+| `404` | `not_found_error` | Assistant (project) not found |
+| `429` | `rate_limit_error` | Rate limit exceeded |
+| `5xx` | `api_error` | Upstream or internal error |
+
+## Rate limits
+
+Chat Completions run a full RAG pipeline (vector search + rerank + LLM call), placing them on the expensive tier:
+
+| Scope | Limit |
+|---|---|
+| `POST /v1/chat/completions` | 10 requests / minute per IP |
+
+Both streaming and non-streaming requests count equally. When the limit is hit, back off with jitter before retrying.
+
+## Differences vs. `POST /v1/chat`
+
+The native [POST /v1/chat](/api-reference/chat) endpoint predates this one and offers a simpler interface (single `content` string, optional `context`). Both are supported:
+
+| Feature | `/v1/chat` | `/v1/chat/completions` |
+|---|---|---|
+| Wire format | Ragen-native JSON / SSE | OpenAI wire format |
+| Multi-turn | No (single prompt) | Yes (messages array) |
+| Model override | No | Yes (`model` field) |
+| Temperature override | No | Yes |
+| `max_tokens` | No | Yes |
+| Page context injection | Yes (`context` field) | No — use `messages` instead |
+| Usage in streams | No | Opt-in via `stream_options` |
+
+Use `/v1/chat/completions` for any new integration. Keep `/v1/chat` for the Ragen embed widget and other existing Ragen-native consumers.

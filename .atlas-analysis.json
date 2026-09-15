@@ -1,0 +1,146 @@
+{
+  "projectType": "saas",
+  "projectName": "Ragen AI",
+  "projectDescription": "Self-hosted, open-source RAG platform that turns your company's documents into an AI knowledge base with multilingual retrieval, source-traceable answers, and an OpenAI-compatible API — with no vendor lock-in on the underlying language model.",
+  "theme": "luma",
+  "primaryColor": "#394d9d",
+  "lightColor": "#ca8396",
+  "darkColor": "#22284f",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "self-hosting"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/overview",
+              "concepts/knowledge-base",
+              "concepts/rag-pipeline",
+              "concepts/access-control"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment",
+              "configuration/models",
+              "configuration/storage",
+              "configuration/open-models"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/mcp-connectors",
+              "integrations/mcp-server",
+              "integrations/oauth"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/overview",
+              "security/encryption",
+              "security/admin-panel"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "roadmap",
+              "faq"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "api-reference/quickstart",
+              "api-reference/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api-reference/chat",
+              "api-reference/chat-completions",
+              "api-reference/files",
+              "api-reference/assistants",
+              "api-reference/threads",
+              "api-reference/search"
+            ]
+          },
+          {
+            "group": "SDKs & Tools",
+            "pages": [
+              "api-reference/typescript-sdk",
+              "api-reference/mcp-server"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Self-hosted RAG platform — your documents, your infrastructure, no vendor lock-in",
+    "Hybrid dense + sparse (BM25) retrieval with cross-encoder reranking",
+    "Multilingual retrieval supporting cross-language queries (92% accuracy benchmark)",
+    "OpenAI-compatible REST API (chat completions, files, assistants, threads)",
+    "Official TypeScript SDK (@webamigos/ragen-sdk-ts) with streaming support",
+    "LiteLLM proxy integration — route to OpenAI, Anthropic, Azure, AWS Bedrock, Google Vertex, or local models",
+    "MCP integrations for Google Drive, Google Calendar, Gmail, HubSpot, ClickUp, Slack",
+    "Embeddable chatbot widget for customer-facing deployments",
+    "AES-256-GCM envelope encryption at rest with Scaleway KMS, AWS KMS, or local key",
+    "Permissions enforced at retrieval — not just in the UI",
+    "Multi-tenancy with one Qdrant collection per organization",
+    "Document types: PDF, DOCX, EPUB, Markdown, TXT, CSV, XLSX, SRT, Images, URLs",
+    "Audit log and 21-event security event log with email alerting",
+    "PII detection via Microsoft Presidio (opt-in)",
+    "Admin panel for platform-wide management of orgs, users, keys, usage, and feature flags"
+  ],
+  "publicApiSurface": [
+    "POST /v1/chat — Send a message and receive a RAG-grounded answer",
+    "POST /v1/chat/completions — OpenAI-compatible chat completions with full RAG pipeline",
+    "GET  /v1/assistants — List assistants (projects)",
+    "POST /v1/assistants — Create an assistant",
+    "GET  /v1/assistants/:id — Retrieve an assistant",
+    "POST|PATCH /v1/assistants/:id — Modify an assistant",
+    "DELETE /v1/assistants/:id — Delete an assistant",
+    "POST /v1/files — Upload a file for ingestion",
+    "GET  /v1/files — List files",
+    "GET  /v1/files/:id — Retrieve a file",
+    "DELETE /v1/files/:id — Delete a file",
+    "POST /v1/threads — Create a thread",
+    "GET  /v1/threads — List threads",
+    "GET  /v1/threads/:id — Retrieve a thread",
+    "POST|PATCH /v1/threads/:id — Modify a thread",
+    "DELETE /v1/threads/:id — Delete a thread",
+    "POST /v1/threads/:id/messages — Add a message",
+    "GET  /v1/threads/:id/messages — List messages",
+    "GET  /v1/threads/:id/messages/:messageId — Retrieve a message",
+    "DELETE /v1/threads/:id/messages/:messageId — Delete a message",
+    "POST /v1/search — Search knowledge base, returns context + file_ids without generating an answer",
+    "GET  /v1/healthcheck — Health check",
+    "MCP tool: ragen_chat — Chat with a Ragen assistant via MCP",
+    "MCP tool: ragen_list_assistants — List assistants via MCP",
+    "SDK: Ragen.chat.completions.create() — Create a chat completion",
+    "SDK: Ragen.chat.completions.stream() — Stream a chat completion",
+    "SDK: Ragen.files.upload() — Upload a file",
+    "SDK: Ragen.files.waitUntilProcessed() — Poll until file is ingested",
+    "SDK: Ragen.files.uploadAndWait() — Upload and wait for processing",
+    "npx create-ragen-app — Scaffold a new Ragen installation"
+  ]
+}

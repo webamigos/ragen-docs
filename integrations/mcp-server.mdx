@@ -1,0 +1,145 @@
+---
+title: 'Use Your Ragen AI Assistants from Any MCP-Compatible Client'
+sidebarTitle: 'MCP Server'
+description: 'Connect Claude Desktop, Cursor, or a custom agent to your Ragen assistants using the MCP Server — no REST API integration required.'
+---
+
+The Ragen MCP Server lets any MCP-compatible client — Claude Desktop, Cursor, a custom agent, or any tool that speaks the Model Context Protocol — talk directly to your Ragen assistants. Instead of integrating the Chat REST API yourself, point your client at the MCP endpoint and start chatting with your knowledge base immediately. This is the reverse of MCP Connectors: here, an external client calls *into* Ragen rather than Ragen calling out to other services.
+
+## Connecting your client
+
+Point your MCP client at the Streamable HTTP endpoint:
+
+```text
+$RAGEN_MCP_URL/mcp
+```
+
+Authenticate using a Ragen API key — the same key you'd use for the REST API. Send it as a Bearer token on every connection:
+
+```text
+Authorization: Bearer YOUR_API_KEY
+```
+
+A connection with no `Authorization` header, or one that isn't `Bearer`-prefixed, is rejected with `401` before any tool call can proceed. Ragen validates the key on each tool call using the same guard as the REST API — a deactivated or malformed key fails exactly as it would on `POST /v1/chat`.
+
+## Available tools
+
+### `ragen_chat`
+
+Send a message to a Ragen assistant and receive its answer.
+
+<ParamField path="assistant_id" type="string" required>
+  The ID of the assistant (project) to send the message to. Use `ragen_list_assistants` to discover available IDs.
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  The message to send to the assistant.
+</ParamField>
+
+<ParamField path="context" type="string">
+  Additional context to include alongside the message — for example, the content of the page the caller is currently viewing.
+</ParamField>
+
+<ParamField path="reasoning_effort" type="string">
+  OpenAI-style reasoning effort level: `"low"`, `"medium"`, or `"high"`. Only honoured by reasoning-capable models; ignored otherwise.
+</ParamField>
+
+**Success response:**
+
+```json
+{ "success": true, "text": "Based on your documentation, the return window is 30 days from the date of purchase." }
+```
+
+**Error response:**
+
+```json
+{ "success": false, "status": 404, "error": "Assistant not found" }
+```
+
+<Note>
+  `ragen_chat` is always non-streaming. An MCP tool call returns a single result, so there is no mechanism to forward a partial answer token-by-token. If you need streaming responses, call the Chat API directly with `stream: true`.
+</Note>
+
+---
+
+### `ragen_list_assistants`
+
+List all assistants available to your API key's organisation. Use this to find an `assistant_id` before calling `ragen_chat`. This tool takes no parameters.
+
+**Success response:**
+
+```json
+{
+  "success": true,
+  "assistants": [
+    { "id": "asst-abc123", "name": "Support Bot" },
+    { "id": "asst-def456", "name": "Sales Bot" }
+  ]
+}
+```
+
+**Error response:**
+
+```json
+{ "success": false, "status": 401, "error": "Unauthorized" }
+```
+
+Scoping is automatic: this calls the same `GET /v1/assistants` endpoint as the REST API, which already returns only the assistants belonging to your API key's organisation. There is no additional access configuration needed.
+
+## Configuring Claude Desktop
+
+Add the following to your Claude Desktop configuration file to connect to your Ragen MCP Server:
+
+```json title="claude_desktop_config.json"
+{
+  "mcpServers": {
+    "ragen": {
+      "url": "https://your-ragen-instance.example.com/mcp",
+      "transport": "streamable-http",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Replace `https://your-ragen-instance.example.com` with your `RAGEN_MCP_URL` value and `YOUR_API_KEY` with a valid Ragen API key.
+
+<Tip>
+  After saving the config, restart Claude Desktop. You should see `ragen_chat` and `ragen_list_assistants` appear in Claude's tool list. Call `ragen_list_assistants` first to confirm the connection is working and to retrieve your assistant IDs.
+</Tip>
+
+## Configuring Cursor
+
+In Cursor's MCP settings, add a new server entry with:
+
+- **Transport:** Streamable HTTP
+- **URL:** `$RAGEN_MCP_URL/mcp`
+- **Authorization header:** `Bearer YOUR_API_KEY`
+
+```json title=".cursor/mcp.json"
+{
+  "mcpServers": {
+    "ragen": {
+      "url": "https://your-ragen-instance.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+## Custom agents
+
+For custom agents or any MCP-compatible SDK, use Streamable HTTP transport and supply the `Authorization: Bearer` header on connection. All standard MCP tool-call patterns apply — discover tools with the standard `tools/list` method and invoke them with `tools/call`.
+
+<CardGroup cols={2}>
+  <Card title="ragen_chat" icon="message">
+    Send a question to a specific assistant and receive a complete answer in one call.
+  </Card>
+  <Card title="ragen_list_assistants" icon="list">
+    Discover available assistants scoped to your API key's organisation.
+  </Card>
+</CardGroup>

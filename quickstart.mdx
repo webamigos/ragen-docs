@@ -1,47 +1,152 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: 'Get Started with Ragen AI: Up and Running in Minutes'
+sidebarTitle: 'Quick Start'
+description: 'Scaffold a local Ragen AI instance with create-ragen-app, start your services, and ask your first question of your own documents in under ten minutes.'
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+Ragen AI is self-hosted, so getting started means getting an instance running on your own machine. One command — `npx create-ragen-app` — scaffolds the entire stack locally: Postgres, Qdrant, the model gateway, and all four applications. Budget about ten minutes, most of it Docker pulling images.
 
 ## Prerequisites
 
-Before you begin, you must have:
+Before you begin, make sure you have the following in place:
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
+- **Node.js 24.x** — the installer checks your version before it clones anything. Running on an older version produces a tree that fails later, far from the actual cause.
+- **Docker and Docker Compose** — both must be running. The backing services (Postgres, Qdrant, LiteLLM, Temporal, Docling, Redis) all run in containers.
+- **~8 GB of RAM** available to Docker. Document parsing is the hungry part; you can drop Docling later if you need to trim memory.
+- **An LLM API key** — OpenAI or Anthropic to start chatting immediately. You can also point Ragen at models on your own hardware, but that is separate deployment work.
 
-## Get started
+No GPU is required unless you choose to serve models locally.
+
+## Steps
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Scaffold your installation">
+    Run the following command in your terminal to scaffold a new Ragen instance:
 
     ```bash
-    npm install your-package
+    npx create-ragen-app my-ragen-app
     ```
+
+    The wizard clones the repository, generates every secret it safely can, prompts you for a model provider key, asks how you want storage and encryption configured, starts the backing services in Docker, and runs the first-time setup — the Prisma client, schema migrations, and the seed data. It does **not** start the applications themselves; that is the next step.
+
+    <Tip>
+      Several flags let you control what the installer does:
+
+      | Flag | Effect |
+      |------|--------|
+      | `--yes` | Accepts every default without prompting |
+      | `--provider=openai` | Reads your key from `OPENAI_API_KEY` instead of asking for it |
+      | `--skip-docker` | Skips starting Docker services (run them yourself) |
+      | `--skip-install` | Skips `npm install` and the Prisma setup steps |
+      | `--ref=<branch>` | Clones a branch other than `main` |
+    </Tip>
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
 
-    ```bash
-    your-cli init
-    ```
+  <Step title="Start the apps">
+    Move into your new directory and start each application in a separate terminal. There is no single root `dev` script because these are separate processes with separate lifetimes.
+
+    <Tabs>
+      <Tab title="Web app (required)">
+        ```bash
+        cd my-ragen-app
+        npm run web:dev      # http://localhost:3000
+        ```
+      </Tab>
+      <Tab title="API server (required)">
+        ```bash
+        cd my-ragen-app
+        npm run api:dev      # http://localhost:3001
+        ```
+      </Tab>
+      <Tab title="Worker (for document uploads)">
+        ```bash
+        cd my-ragen-app
+        npm run worker:dev   # document ingestion via Temporal
+        ```
+      </Tab>
+      <Tab title="Admin panel (optional)">
+        ```bash
+        cd my-ragen-app
+        npm run admin:dev    # http://localhost:3200
+        ```
+      </Tab>
+    </Tabs>
+
+    <Warning>
+      `apps/api` is **not optional**. The web app delegates thread creation, the thread sidebar, and notifications to it. Starting only the web app gives you a panel that loads but a chat that cannot open a thread.
+    </Warning>
+
+    <Note>
+      `apps/worker` is what turns an uploaded file into searchable chunks. Without it, an upload returns `200` and the document sits in a pending state indefinitely — nothing in the web UI explains why. Start the worker in a third terminal before uploading any documents.
+    </Note>
+
+    Once all three required processes are running, your local stack looks like this:
+
+    | Process | URL | Purpose |
+    |---------|-----|---------|
+    | `web:dev` | http://localhost:3000 | Main chat and knowledge base UI |
+    | `api:dev` | http://localhost:3001 | REST API and OpenAI-compatible surface |
+    | `worker:dev` | — | Async document ingestion |
+    | `admin:dev` | http://localhost:3200 | Platform admin panel (optional) |
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
 
-    ```bash
-    your-cli start
-    ```
+  <Step title="Create your first account">
+    Open [http://localhost:3000](http://localhost:3000) in your browser. A fresh install redirects you to a first-run setup page where you choose the platform administrator's name, your organization name, and a password. That account can then create all other accounts on the platform.
+
+    <Note>
+      If anything required is still misconfigured, the setup page lists the missing environment variable by name and tells you what breaks without it — rather than showing a stack trace. An unreachable database is reported the same way.
+    </Note>
+  </Step>
+
+  <Step title="Upload a document and ask a question">
+    With your account created, you are ready to build your first knowledge base and query it.
+
+    <Steps>
+      <Step title="Create a project">
+        A project is a self-contained knowledge base with its own documents and its own assistant instructions. Create one from the main navigation.
+      </Step>
+      <Step title="Upload a document">
+        Upload any supported file (PDF, DOCX, XLSX, CSV, Markdown, plain text, images, and more) to your project. Parsing happens asynchronously in the worker — watch the document's status indicator to see when it becomes searchable.
+      </Step>
+      <Step title="Ask a question in chat">
+        Open the chat for your project and ask a question. The answer is grounded in the document you uploaded, with citations linking back to the exact source passages.
+      </Step>
+    </Steps>
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Verify your installation
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+Once everything is running, use these curl commands to confirm each service is healthy:
+
+```bash
+# API server — should return {"status":"ok"}
+curl http://localhost:3001/v1/healthcheck
+
+# LiteLLM — lists the models it can actually reach
+curl http://localhost:4000/v1/models
+
+# Qdrant — confirms the vector store is up
+curl http://localhost:6333/collections
+```
+
+<Note>
+  If document ingestion appears to hang, check the worker log first. The upload endpoint returns `200` as soon as the file is stored — parsing is asynchronous, and a parsing failure is only visible in the worker log and in the document's status field in the UI.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Self-Hosting" icon="server" href="/self-hosting">
+    The manual deployment path, what each service does, and the settings that matter most in production — encryption, storage, and the embedding model.
+  </Card>
+  <Card title="API Quickstart" icon="code" href="/api-reference/quickstart">
+    Make your first call against the instance you just built using the TypeScript SDK.
+  </Card>
+  <Card title="Concepts" icon="book-open" href="/concepts/overview">
+    Understand projects, organizations, RAG, and access control before you go further.
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration/environment">
+    Every environment variable, which app reads it, and what breaks when it is missing.
+  </Card>
+</CardGroup>

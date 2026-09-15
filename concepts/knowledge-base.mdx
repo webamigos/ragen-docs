@@ -1,0 +1,91 @@
+---
+title: 'Building and Managing Your Knowledge Base'
+sidebarTitle: 'Knowledge Base'
+description: 'Organize documents into nested folders with fine-grained permissions. Control who sees each file at the team, user, and org level.'
+---
+
+Your knowledge base is a structured library of documents organized into nested folders. Every file you upload belongs to a project, lives inside a folder (or at the root level), and carries its own visibility rules — controlling exactly which team members can retrieve it when they ask a question.
+
+## Supported file types
+
+Ragen AI accepts a wide range of formats. When you upload a file, the background worker automatically parses it into searchable chunks.
+
+| Format | Extensions | Notes |
+|--------|-----------|-------|
+| PDF | `.pdf` | Text and scanned pages (OCR) |
+| Word document | `.docx` | Paragraphs and tables |
+| E-book | `.epub` | Chapter-level chunking |
+| Markdown | `.md`, `.mdx` | Preserves headings |
+| Plain text | `.txt` | Line-aware splitting |
+| CSV | `.csv` | Row-level chunking |
+| Spreadsheet | `.xlsx` | Sheet and row chunking |
+| Subtitle | `.srt` | Timestamp-aware chunks |
+| Images | `.jpg`, `.jpeg`, `.png`, `.webp` | Vision extraction |
+| Web page | URL | Fetched and parsed at upload time |
+
+## Document processing pipeline
+
+When you upload a file, Ragen AI processes it automatically in the background. You do not need to trigger any additional steps — the document becomes searchable once processing completes.
+
+<Steps>
+  <Step title="Upload">
+    Your file is transferred to secure cloud storage. The upload returns immediately; processing happens asynchronously.
+  </Step>
+  <Step title="Parse and chunk">
+    A background worker parses the file using a format-specific splitter and divides the content into overlapping chunks sized for retrieval.
+  </Step>
+  <Step title="Generate summary">
+    The worker generates a short summary of the entire document and prepends it as a special summary chunk. This gives retrieval a high-level anchor that no individual flat chunk contains.
+  </Step>
+  <Step title="Embed">
+    Each chunk — including the summary chunk — is converted to a hybrid representation: a dense vector using `bge-multilingual-gemma2` for semantic meaning, plus BM25 sparse tokens for exact-term matching.
+  </Step>
+  <Step title="Store in Qdrant">
+    Both vector types are upserted into Qdrant's named-vector collection. The chunk also carries an `accessible_by` metadata field that encodes the file's visibility rules, so retrieval automatically filters results based on who is asking.
+  </Step>
+</Steps>
+
+## Folders
+
+Folders let you group related documents and apply permissions at a hierarchy level rather than file by file. Ragen AI supports arbitrarily deep nesting — a folder can contain both files and sub-folders.
+
+Each folder can be:
+
+- **Personal** — owned by you, visible only to you and org admins unless explicitly shared
+- **Team folder** — assigned to a team, visible to all team members and org admins automatically
+- **Shared** — explicitly shared with specific users or teams at either `view` or `full` access level
+
+Folder permissions cascade: granting access to a parent folder automatically extends to everything inside it.
+
+## File visibility rules
+
+Every file's visibility is determined by who owns it and whether it has been explicitly shared. The table below covers the common scenarios.
+
+| Scenario | Who can see |
+|----------|-------------|
+| Org-wide file (no owner set) | All organization members |
+| User-owned file | File owner + org admins + anyone with an explicit share |
+| Team folder | Team members + org admins |
+| Shared file or folder | Users and teams with explicit permissions |
+
+<Info>
+  Visibility rules are enforced at retrieval time inside the vector store — not just in the UI. A document someone cannot read will never surface in their answers, even through the API.
+</Info>
+
+## Document versioning
+
+Every time a document's content changes, Ragen AI creates a new version and re-indexes it. This gives you a full audit trail and the ability to roll back to any previous state.
+
+| Change type | When it is created |
+|-------------|-------------------|
+| `UPLOAD` | Initial ingest — version 1 of every document |
+| `MANUAL` | You edit the document content directly in the editor |
+| `AI_REWRITE` | The AI rewrites the document at your request |
+| `AI_OPTIMIZE` | The AI applies accepted optimization suggestions |
+| `ROLLBACK` | You restore a previous version (appends, never overwrites history) |
+
+Rolling back appends a new version with the earlier content rather than deleting the intermediate versions, so you can always undo a rollback.
+
+<Tip>
+  Connect your Google Drive account to import entire folders at once — up to 200 files per import. Ragen AI fetches the files, processes them through the same pipeline, and keeps them organized in a matching folder structure inside your knowledge base.
+</Tip>

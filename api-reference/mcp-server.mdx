@@ -1,0 +1,267 @@
+---
+title: 'Connect Claude Desktop and AI Agents to Ragen AI'
+sidebarTitle: 'MCP Server'
+description: 'Use the Ragen MCP Server to give Claude Desktop, Cursor, or custom AI agents direct access to your Ragen assistants and knowledge base over MCP.'
+---
+
+The Ragen MCP Server exposes your Ragen assistants as [Model Context Protocol](https://modelcontextprotocol.io) tools, so any MCP-compatible client — Claude Desktop, Cursor, or a custom agent — can query your knowledge base directly without calling the REST API yourself. You send a natural-language message, the server forwards it to the right assistant, runs retrieval and generation server-side, and returns a grounded answer.
+
+## Connecting
+
+Point your MCP client at the Streamable HTTP endpoint:
+
+```bash
+$RAGEN_MCP_URL/mcp
+```
+
+Authenticate using the same API key you use for the REST API — send it as a Bearer token on every connection:
+
+```http
+Authorization: Bearer YOUR_API_KEY
+```
+
+<Warning>
+  A connection with no `Authorization` header, or one that isn't `Bearer`-prefixed, is rejected with a `401` before any tool call is possible. The API key's validity is checked on each tool invocation by the same guard the REST API uses — a deactivated or malformed key fails the same way it would calling `/v1/chat` directly.
+</Warning>
+
+---
+
+## Available Tools
+
+The Ragen MCP Server exposes three tools today.
+
+<Accordion title="ragen_chat — Send a message to an assistant">
+  Send a message to a Ragen assistant and receive a grounded answer drawn from its knowledge base. This is the MCP equivalent of `POST /v1/chat`.
+
+  **Parameters**
+
+  <ParamField body="assistant_id" type="string" required>
+    The ID of the Ragen assistant (project) to send the message to. Use `ragen_list_assistants` to discover available IDs.
+  </ParamField>
+
+  <ParamField body="message" type="string" required>
+    The message to send. Must be at least one character.
+  </ParamField>
+
+  <ParamField body="context" type="string">
+    Optional additional context to include alongside the message — for example, the content of the page the user is currently viewing. Helps the assistant give more relevant answers.
+  </ParamField>
+
+  <ParamField body="reasoning_effort" type="string">
+    OpenAI-style reasoning effort level: `low`, `medium`, or `high`. Only honored by reasoning-capable models; silently ignored otherwise.
+  </ParamField>
+
+  **Response**
+
+  On success:
+
+  ```json
+  {
+    "success": true,
+    "text": "Based on your documentation, the refund policy allows returns within 30 days..."
+  }
+  ```
+
+  On failure:
+
+  ```json
+  {
+    "success": false,
+    "status": 404,
+    "error": "Assistant not found"
+  }
+  ```
+
+  <Note>
+    `ragen_chat` is always non-streaming. MCP tool calls return a single result, not a Server-Sent Events stream. If you need token-by-token streaming, call the [Chat API](/api-reference/quickstart) directly with `stream: true`.
+  </Note>
+</Accordion>
+
+<Accordion title="ragen_list_assistants — List available assistants">
+  List all assistants available to your API key's organization. Use this to discover assistant IDs before calling `ragen_chat` or `ragen_search_knowledge_base`.
+
+  **Parameters**
+
+  This tool takes no parameters.
+
+  **Response**
+
+  On success:
+
+  ```json
+  {
+    "success": true,
+    "assistants": [
+      { "id": "asst-abc123", "name": "Support Bot" },
+      { "id": "asst-def456", "name": "Sales Bot" }
+    ]
+  }
+  ```
+
+  On failure:
+
+  ```json
+  {
+    "success": false,
+    "status": 401,
+    "error": "Unauthorized"
+  }
+  ```
+
+  Scoping is automatic: results are limited to assistants owned by the API key's organization. There is no separate access configuration required.
+</Accordion>
+
+<Accordion title="ragen_search_knowledge_base — Retrieve document chunks">
+  Search an assistant's knowledge base and return the most relevant document chunks, without generating an answer. Use this when you want to ground your own reasoning in retrieved documents — for a fully generated answer, use `ragen_chat` instead.
+
+  **Parameters**
+
+  <ParamField body="assistant_id" type="string" required>
+    The ID of the Ragen assistant (project) whose knowledge base to search.
+  </ParamField>
+
+  <ParamField body="query" type="string" required>
+    The search query. Must be at least one character.
+  </ParamField>
+
+  <ParamField body="max_results" type="number">
+    Maximum number of document chunks to return. Must be between 1 and 20. Defaults to the organization's configured retrieval count when omitted.
+  </ParamField>
+
+  **Response**
+
+  On success:
+
+  ```json
+  {
+    "success": true,
+    "context": "Section 3.2: Refund Policy\nCustomers may request a refund within 30 days...",
+    "file_ids": ["file-abc123", "file-def456"]
+  }
+  ```
+
+  On failure:
+
+  ```json
+  {
+    "success": false,
+    "status": 404,
+    "error": "Assistant not found"
+  }
+  ```
+</Accordion>
+
+---
+
+## Configuring Claude Desktop
+
+To add Ragen to Claude Desktop, open your `claude_desktop_config.json` file and add a `ragen` entry under `mcpServers`. Claude Desktop supports Streamable HTTP MCP servers via a proxy command; use `npx` with the `@modelcontextprotocol/server-fetch` helper (or any HTTP-to-stdio bridge you prefer):
+
+```json title="claude_desktop_config.json"
+{
+  "mcpServers": {
+    "ragen": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch",
+        "https://your-ragen-instance.example.com/mcp"
+      ],
+      "env": {
+        "AUTHORIZATION": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Replace `https://your-ragen-instance.example.com/mcp` with your actual `$RAGEN_MCP_URL/mcp` value.
+
+<Tip>
+  On macOS, the `claude_desktop_config.json` file lives at `~/Library/Application Support/Claude/claude_desktop_config.json`. Restart Claude Desktop after saving changes for them to take effect.
+</Tip>
+
+---
+
+## Step-by-Step Usage Example
+
+Once your MCP client is connected, follow these steps to query your knowledge base:
+
+<Steps>
+  <Step title="List your assistants">
+    Call `ragen_list_assistants` with no parameters to see which assistants are available to your API key.
+
+    ```json
+    // Tool: ragen_list_assistants
+    // Parameters: (none)
+
+    // Response:
+    {
+      "success": true,
+      "assistants": [
+        { "id": "asst-abc123", "name": "Support Bot" },
+        { "id": "asst-def456", "name": "Sales Bot" }
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Pick an assistant ID">
+    Identify the `id` of the assistant whose knowledge base you want to query. In the example above, you'd use `"asst-abc123"` to reach the Support Bot.
+  </Step>
+
+  <Step title="Ask your question with ragen_chat">
+    Call `ragen_chat` with your chosen `assistant_id` and the question you want answered.
+
+    ```json
+    // Tool: ragen_chat
+    {
+      "assistant_id": "asst-abc123",
+      "message": "What is the return policy for digital products?"
+    }
+
+    // Response:
+    {
+      "success": true,
+      "text": "Digital products are non-refundable once downloaded, unless the product is defective..."
+    }
+    ```
+  </Step>
+
+  <Step title="(Optional) Search without generating an answer">
+    If you want the raw document chunks instead of a generated answer — for example, to combine them with your own reasoning — use `ragen_search_knowledge_base` instead.
+
+    ```json
+    // Tool: ragen_search_knowledge_base
+    {
+      "assistant_id": "asst-abc123",
+      "query": "return policy digital products",
+      "max_results": 5
+    }
+
+    // Response:
+    {
+      "success": true,
+      "context": "3.4 Digital Products\nDigital goods are non-refundable once the download link has been accessed...",
+      "file_ids": ["file-policy-v3"]
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Current Scope
+
+<Note>
+  Today the Ragen MCP Server exposes three tools: `ragen_chat`, `ragen_list_assistants`, and `ragen_search_knowledge_base`. File upload and full thread history via MCP are on the roadmap — they follow the same pattern and will be added as additional tools in a future release.
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Chat API Quickstart" icon="bolt" href="/api-reference/quickstart">
+    Use the TypeScript SDK or REST API directly for streaming and advanced control.
+  </Card>
+  <Card title="TypeScript SDK Reference" icon="code" href="/api-reference/typescript-sdk">
+    Full method reference for `@webamigos/ragen-sdk-ts`, including file upload and error handling.
+  </Card>
+</CardGroup>

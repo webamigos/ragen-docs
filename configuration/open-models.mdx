@@ -1,0 +1,254 @@
+---
+title: 'Run Ragen AI Fully Offline with Local LLM Model Servers'
+sidebarTitle: 'Local Models'
+description: 'Point all four model roles at a local vLLM or Ollama server so no document content, query text, or embeddings ever leave your network.'
+---
+
+When you point every model role at a local endpoint, nothing your users type and none of your document content leaves your network. Nearly every model call Ragen makes goes through the LiteLLM proxy you run — swap that proxy's targets to local servers and the work that touches your data happens entirely on machines you control. "Fully offline" is a configuration you arrive at intentionally, not something you inherit: you must set all four model roles, disable outbound reranking, set `DOCLING_STRICT=1`, and check the [what still reaches outward](#what-still-reaches-outward) table below.
+
+## How the Routing Works
+
+All three application services send model requests to a single LiteLLM proxy. Changing which model servers that proxy points to requires only an edit to `infra/litellm/config.yaml` and the matching environment variables — no application code changes.
+
+```
+apps/web  ─┐
+apps/api   ├─→  LiteLLM proxy  ─→  vLLM / Ollama on your GPU box
+worker    ─┘         ↑
+               infra/litellm/config.yaml
+```
+
+The embedding model is the one exception worth planning around: it determines the shape of the Qdrant index. Changing `EMBEDDINGS_MODEL` requires updating `VECTOR_SIZE` to match the new model's output dimensions and re-indexing every document you have already ingested.
+
+## Pick a Server
+
+Both vLLM and Ollama expose an OpenAI-compatible API, which is all LiteLLM needs to route requests to them.
+
+<Tabs>
+  <Tab title="vLLM">
+    vLLM is the right choice when more than one person will be using Ragen concurrently. Its continuous batching lets many requests run in parallel on the same GPU.
+
+    | | Detail |
+    |---|---|
+    | **Best for** | Teams, production workloads, real concurrency |
+    | **Hardware** | NVIDIA GPU required; model must fit in VRAM |
+    | **Throughput** | Continuous batching — many requests at once |
+    | **Setup** | Choose a model, a quantisation level, and tensor-parallel size |
+    | **Embeddings** | `/v1/embeddings` endpoint |
+    | **Reranking** | `/v1/rerank` endpoint (Cohere/Jina-compatible) |
+
+    **Rough VRAM arithmetic:** weights need about 2 bytes per parameter at bf16, or ~0.6 bytes at 4-bit. An 8B model is roughly 16 GB unquantised and 6 GB quantised. Budget extra headroom for the KV cache — RAG prompts carry retrieved chunks and can easily reach 4–8k tokens, so the cache grows larger than a simple chatbot workload would suggest.
+  </Tab>
+  <Tab title="Ollama">
+    Ollama is the fastest path to a working local setup. A single command pulls a model and starts serving it.
+
+    | | Detail |
+    |---|---|
+    | **Best for** | Pilots, single-box installs, a handful of users |
+    | **Hardware** | Runs on CPU; a GPU makes it usable at reasonable speed |
+    | **Throughput** | One request at a time in practice |
+    | **Setup** | `ollama pull <model>`, done |
+    | **Embeddings** | `/v1/embeddings` endpoint |
+    | **Reranking** | No rerank endpoint |
+
+    A sensible path is Ollama first to prove the wiring and evaluate answer quality, then vLLM once more than one person is asking questions at a time.
+  </Tab>
+</Tabs>
+
+## Set All Four Model Roles
+
+The most common mistake is pointing only `DEFAULT_MODEL` at a local server, watching chat work, and assuming the installation is isolated. It is not. Ragen calls a model in four separate places, each with its own environment variable and its own cloud-hosted default.
+
+| Job | Environment Variable | Default if Unset | Called When |
+|---|---|---|---|
+| Answering | `DEFAULT_MODEL` | `gemini-3-flash-preview` | Every question |
+| Rephrase + multi-query expansion | `REPHRASE_MODEL` | `gemini-2.5-flash` | Before retrieval, every question |
+| Document summary at ingest | `SUMMARY_MODEL` | `gemini-2.5-flash` | Every document (when summaries are enabled) |
+| Embeddings | `EMBEDDINGS_MODEL` | `bge-multilingual-gemma2` | Every document ingest and every query |
+
+Leaving `REPHRASE_MODEL` unset is the most common miss. It sends the user's question and the full conversation history to a cloud model on every single turn — which is exactly the traffic an isolated deployment exists to prevent.
+
+## Wiring vLLM
+
+Start the vLLM server with a served model name that matches what you will put in LiteLLM's config:
+
+```bash
+vllm serve Qwen/Qwen3-8B \
+  --served-model-name local-chat \
+  --host 0.0.0.0 --port 8000
+```
+
+Register the model in `infra/litellm/config.yaml`. The `hosted_vllm/` prefix is LiteLLM's route for a self-hosted OpenAI-compatible vLLM server:
+
+```yaml title="infra/litellm/config.yaml"
+model_list:
+  - model_name: local-chat
+    litellm_params:
+      model: hosted_vllm/local-chat
+      api_base: http://vllm:8000/v1
+      api_key: none   # vLLM accepts any value unless started with --api-key
+```
+
+To run vLLM as a container alongside the rest of the stack, add it to `docker-compose.override.yml` on the same network:
+
+```yaml title="docker-compose.override.yml"
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    command: ['--model', 'Qwen/Qwen3-8B', '--served-model-name', 'local-chat']
+    networks: [ragen-network]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+```
+
+If vLLM runs on a separate GPU host, replace `http://vllm:8000` with that host's address — LiteLLM only needs network access to it.
+
+After editing the config, restart the proxy and confirm it sees the model:
+
+```bash
+docker compose restart litellm
+curl http://localhost:4000/v1/models
+```
+
+## Wiring Ollama
+
+Pull the model you want to use:
+
+```bash
+ollama pull qwen3:8b
+```
+
+Register it in `infra/litellm/config.yaml`. Use `ollama_chat/` rather than `ollama/` — the chat endpoint produces better results:
+
+```yaml title="infra/litellm/config.yaml"
+model_list:
+  - model_name: local-chat
+    litellm_params:
+      model: ollama_chat/qwen3:8b
+      api_base: http://ollama:11434
+```
+
+<Note>
+  If Ollama runs on the Docker host rather than inside the compose network, use `http://host.docker.internal:11434` on Docker Desktop. On Linux, use the host's IP address on the Docker bridge network.
+</Note>
+
+Point the four model role variables at your local model name:
+
+```bash
+DEFAULT_MODEL_PROVIDER=litellm
+DEFAULT_MODEL=local-chat
+REPHRASE_MODEL=local-chat
+SUMMARY_MODEL=local-chat
+# EMBEDDINGS_MODEL is set separately — see below
+```
+
+## Setting Up Local Embeddings
+
+<Warning>
+  Set `VECTOR_SIZE` to match your embedding model's output dimensions **before you upload the first document**. Qdrant creates the collection with a fixed vector size, and there is no way to change it afterwards short of deleting the collection and re-indexing everything. A mismatch between `VECTOR_SIZE` and the model's actual output causes Qdrant to reject every upsert — and the failure looks like a broken ingest, not a configuration mistake.
+</Warning>
+
+Both vLLM and Ollama expose a `/v1/embeddings` endpoint. Register an embedding model separately from the chat model so you can hide it from the chat picker:
+
+```yaml title="infra/litellm/config.yaml"
+model_list:
+  - model_name: local-embed
+    litellm_params:
+      model: openai/local-embed       # vLLM path
+      api_base: http://vllm-embed:8000/v1
+      api_key: none
+
+  # For Ollama, use:
+  # - model_name: local-embed
+  #   litellm_params:
+  #     model: openai/bge-m3
+  #     api_base: http://ollama:11434/v1
+  #     api_key: none
+```
+
+Set the matching environment variables. `VECTOR_SIZE` must equal the model's output dimensionality — not an assumption, the actual number from the model card:
+
+```bash
+EMBEDDINGS_MODEL=local-embed
+VECTOR_SIZE=1024   # bge-m3 and multilingual-e5-large → 1024
+                   # bge-multilingual-gemma2 (the default) → 3584
+                   # Check your model's spec rather than guessing
+```
+
+Common embedding model dimensions for reference:
+
+| Model | Dimensions |
+|---|---|
+| `bge-multilingual-gemma2` (Ragen default) | 3584 |
+| `bge-m3` | 1024 |
+| `multilingual-e5-large` | 1024 |
+| `cohere-embed-multilingual-v3` | 1024 |
+
+## What Still Reaches Outward
+
+Setting local model targets closes most outbound traffic, but several other paths remain. Work through this table to confirm your installation is fully isolated.
+
+| Path | Default Status | What to Do |
+|---|---|---|
+| Content moderation | Off (`MODERATION_ENABLED` unset) | Leave it off. When enabled, it calls the OpenAI Moderation API **directly** — it is the one model call that does not go through LiteLLM and cannot be redirected. |
+| Legacy PDF parsing | Silent fallback | Set `DOCLING_STRICT=1`. Docling parses documents locally by default, but a Docling failure falls back to a loader that sends the PDF to an external model. |
+| Reranking | Off (`FEATURE_FLAG_RERANKING` unset) | Leave it off, or use `RERANK_PROVIDER=scaleway` pointed at your own vLLM rerank server. `RERANK_PROVIDER=cohere` routes through AWS Bedrock by definition. |
+| MCP connectors | Opt-in per organisation | Slack, HubSpot, Google, and similar connectors are outbound by design. Leave them unconfigured or accept the traffic knowingly. |
+| Speech (TTS/STT) | Off unless configured | `SPEECH_PROVIDER=elevenlabs` leaves the network. The OpenAI speech path routes through LiteLLM when `LITELLM_PROXY_URL` is set, so it can be served locally. |
+| Mail | Optional | Point `SMTP_HOST` at an internal mail server, or set `MAIL_PROVIDER=console` to write messages to the log instead. |
+| LiteLLM → Langfuse tracing | Off unless `LANGFUSE_*` vars are set | Leave those variables unset, or point them at a self-hosted Langfuse instance. |
+| Container images | Install-time only | Pull images once, then mirror them to an internal registry and cut outbound container traffic. |
+
+## Things That Break Differently on Local Models
+
+Switching to a local model can change behaviour in ways that are not obvious errors. Know what to look for before you commit to a model.
+
+<Accordion title="Structured output (multi-query expansion)">
+  Multi-query expansion asks the model to return a JSON object that matches a schema. vLLM constrains generation to the schema natively. Ollama supports `response_format`, but coverage varies by model and version.
+
+  A failure here does not surface as an error — Ragen falls back to searching the user's raw question without expansion, so a follow-up like "and what about the second one?" is retrieved literally with no conversation history behind it. Watch the logs: grep for `Rephrase-and-expand failed` after switching models.
+</Accordion>
+
+<Accordion title="Tool calling (MCP connectors and built-in tools)">
+  MCP connectors and built-in tools require a model that supports function calling. Many open models do; some do not. When a model does not support function calling, the tools simply never fire — there is no error, the features are just absent.
+</Accordion>
+
+<Accordion title="Vision (image attachments)">
+  A text-only local model cannot process an image attached to a message. Set `MULTIMODAL_TEXT_ONLY_MODELS` to the model's ID and `MULTIMODAL_FALLBACK_MODEL` to a vision-capable model, and Ragen will swap models automatically when a request includes an image.
+
+  ```bash
+  MULTIMODAL_TEXT_ONLY_MODELS=local-chat
+  MULTIMODAL_FALLBACK_MODEL=gemini-2.5-flash  # or another vision-capable model
+  ```
+</Accordion>
+
+<Accordion title="Context length">
+  RAG prompts are long — the question, the conversation history, and several retrieved document chunks can easily reach 4–8k tokens. A model with a short context window will either reject the request or silently truncate the earliest part of it. Truncation reads as "the answer ignored my document" rather than a context length error. Check your model's context window against a realistic prompt before deploying.
+</Accordion>
+
+## Verifying Your Isolated Install
+
+After completing the configuration, run these checks to confirm every path is local:
+
+```bash
+# The proxy serves your local model IDs
+curl http://localhost:4000/v1/models
+
+# The model server is up
+curl http://localhost:8000/v1/models
+
+# Qdrant is up and has the right collection size
+curl http://localhost:6333/collections
+```
+
+Then ask one question in the UI and ingest one document, and watch the model server's log. A fully local install shows:
+
+- A request for the **rephrase** (before retrieval)
+- A request for the **answer** (after retrieval)
+- A batch of **embedding** requests for the ingested document
+
+If the rephrase request never arrives at the local server, `REPHRASE_MODEL` is still pointing at a cloud model.

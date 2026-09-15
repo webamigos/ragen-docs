@@ -1,0 +1,189 @@
+---
+title: 'Get Started with the Ragen AI API'
+sidebarTitle: 'Quickstart'
+description: 'Install the TypeScript SDK, send your first chat completion, and stream tokens from your self-hosted Ragen instance in minutes.'
+---
+
+Ragen exposes an OpenAI-compatible REST API at `/v1` and an official TypeScript SDK — `@webamigos/ragen-sdk-ts` — that adds typed responses, streaming helpers, automatic retries, and `waitUntilProcessed()` for file uploads. If your language or runtime cannot use the SDK, every feature is also available over raw HTTP.
+
+## Prerequisites
+
+Before making your first API call, make sure you have:
+
+<CardGroup cols={2}>
+  <Card title="Running Ragen instance" icon="server">
+    A self-hosted Ragen deployment reachable at a known URL — for example, `http://localhost:3001`.
+  </Card>
+  <Card title="Project with documents" icon="folder-open">
+    At least one project with documents uploaded to its knowledge base so the API has content to retrieve.
+  </Card>
+  <Card title="API key" icon="key">
+    An API key scoped to your organization and project. You'll create one in Step 1.
+  </Card>
+  <Card title="Node.js 18+" icon="node-js">
+    Node.js version 18 or later for the TypeScript SDK. Earlier versions are not supported.
+  </Card>
+</CardGroup>
+
+## Steps
+
+<Steps>
+  <Step title="Create an API key">
+    Open your Ragen instance in a browser, log in, and navigate to **Settings → API Keys**. Click **Create API Key**, give it a name, and select the project this key should access. You can also enable **Debug mode** at this point to save API conversations as threads for later inspection.
+
+    Click **Create**, then **copy the key immediately** — it is displayed only once. A masked version is stored for display, but the full secret cannot be recovered after you leave this page.
+  </Step>
+
+  <Step title="Install the SDK">
+    Add the SDK to your project using your preferred package manager:
+
+    ```bash
+    npm install @webamigos/ragen-sdk-ts
+    # or
+    pnpm add @webamigos/ragen-sdk-ts
+    # or
+    yarn add @webamigos/ragen-sdk-ts
+    ```
+  </Step>
+
+  <Step title="Set environment variables">
+    The SDK reads your credentials from the environment by default. Set both variables before running your application:
+
+    ```bash
+    export RAGEN_API_KEY="sk-<keyId>.<secret>"
+    export RAGEN_BASE_URL="http://localhost:3001/v1"   # replace with your instance URL
+    ```
+
+    All examples below read from these environment variables. Never hard-code your API key in source code.
+  </Step>
+
+  <Step title="Send your first completion">
+    Create a `Ragen` client and call `chat.completions.create`. The response is grounded in the project's knowledge base — retrieval, reranking, and answer generation all happen server-side.
+
+    ```ts title="completion.ts"
+    import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+    const ragen = new Ragen({ apiKey: process.env.RAGEN_API_KEY });
+
+    const completion = await ragen.chat.completions.create({
+      assistantId: '123e4567-e89b-12d3-a456-426614174000',
+      messages: [{ role: 'user', content: 'What is our refund policy?' }],
+    });
+
+    console.log(completion.choices[0].message.content);
+    ```
+
+    <Tip>
+      If most of your calls target the same project, set `assistantId` on the client once and omit it on every individual call:
+
+      ```ts
+      const ragen = new Ragen({
+        apiKey:       process.env.RAGEN_API_KEY,
+        assistantId:  '123e4567-e89b-12d3-a456-426614174000',
+      });
+
+      await ragen.chat.completions.create({
+        messages: [{ role: 'user', content: 'Hi' }],
+      });
+      ```
+    </Tip>
+  </Step>
+
+  <Step title="Stream tokens">
+    Use `chat.completions.stream` to receive tokens as they are generated. Iterate over the async stream or use `streamToString` when you just want the finished text:
+
+    ```ts title="stream.ts"
+    import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+    const ragen = new Ragen({ apiKey: process.env.RAGEN_API_KEY });
+
+    // Iterate over chunks
+    const stream = ragen.chat.completions.stream({
+      assistantId: '123e4567-e89b-12d3-a456-426614174000',
+      messages:    [{ role: 'user', content: 'Summarize our onboarding process' }],
+      stream_options: { include_usage: true },
+    });
+
+    for await (const chunk of stream) {
+      process.stdout.write(chunk.choices[0]?.delta?.content ?? '');
+      if (chunk.usage) {
+        console.log(`\n\nUsed ${chunk.usage.total_tokens} tokens`);
+      }
+    }
+
+    // Or collect the full response as a string
+    const text = await ragen.chat.completions.streamToString({
+      assistantId: '123e4567-e89b-12d3-a456-426614174000',
+      messages:    [{ role: 'user', content: 'Summarize the handbook' }],
+    });
+    ```
+  </Step>
+</Steps>
+
+## Error handling
+
+All SDK errors extend `RagenError`. Pattern-match on the subclass to handle specific HTTP statuses gracefully:
+
+```ts title="error-handling.ts"
+import {
+  RagenAuthError,
+  RagenNotFoundError,
+  RagenRateLimitError,
+  RagenAPIError,
+  RagenError,
+} from '@webamigos/ragen-sdk-ts';
+
+try {
+  await ragen.chat.completions.create({
+    assistantId: '123e4567-e89b-12d3-a456-426614174000',
+    messages:    [{ role: 'user', content: 'Hi' }],
+  });
+} catch (err) {
+  if (err instanceof RagenRateLimitError) {
+    // HTTP 429 — already auto-retried; surface to the caller
+  } else if (err instanceof RagenAuthError) {
+    // HTTP 401 — invalid or missing API key
+  } else if (err instanceof RagenNotFoundError) {
+    // HTTP 404 — unknown assistant ID or resource
+  } else if (err instanceof RagenAPIError) {
+    // HTTP 5xx — already auto-retried
+  } else if (err instanceof RagenError) {
+    console.error(err.status, err.code, err.message);
+  } else {
+    throw err;
+  }
+}
+```
+
+`429` and `5xx` responses are automatically retried with exponential backoff and jitter, up to `maxRetries` times (default `2`).
+
+## SDK configuration options
+
+| Option        | Type           | Default                        | Description                                                       |
+|---------------|----------------|--------------------------------|-------------------------------------------------------------------|
+| `apiKey`      | `string`       | `process.env.RAGEN_API_KEY`    | Your API key. Required.                                           |
+| `assistantId` | `string`       | —                              | Default project ID used when not passed on individual calls.      |
+| `baseURL`     | `string`       | `process.env.RAGEN_BASE_URL`   | Your instance URL, e.g. `http://localhost:3001/v1`. Required.     |
+| `maxRetries`  | `number`       | `2`                            | Number of retry attempts on `429`/`5xx` and transient errors.     |
+| `timeout`     | `number` (ms)  | `30000`                        | Per-request timeout in milliseconds.                              |
+| `fetch`       | `typeof fetch` | `globalThis.fetch`             | Custom `fetch` implementation, useful for testing or polyfills.   |
+
+## Raw HTTP example
+
+When the SDK is not available — for example in Python, Go, or shell scripts — call the same endpoint directly over HTTP:
+
+```bash
+curl -X POST $RAGEN_BASE_URL/chat/completions \
+  -H "Authorization: Bearer $RAGEN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistant_id": "123e4567-e89b-12d3-a456-426614174000",
+    "messages": [
+      { "role": "user", "content": "What is our refund policy?" }
+    ]
+  }'
+```
+
+<Tip>
+  Ragen serves an interactive Swagger UI at `/v1/docs` (OpenAPI JSON at `/v1/docs/openapi.json`). It is enabled by default and can be disabled by setting the `SWAGGER_ENABLED=false` environment variable on your instance.
+</Tip>

@@ -1,0 +1,249 @@
+---
+title: 'Self-Hosting Ragen AI on Your Own Infrastructure Guide'
+sidebarTitle: 'Self-Hosting'
+description: 'Deploy Ragen AI with Docker Compose on your own servers — covering services, environment variables, feature flags, and production hardening.'
+---
+
+Ragen runs entirely on your own infrastructure. This page walks you through the manual deployment path — what every service is for, the minimum environment you need to provide, and the settings that matter most before you go to production. If you want the fastest possible path to a running instance, start with [`create-ragen-app`](/quickstart) instead; come back here when you want to understand and control what it did.
+
+## Prerequisites
+
+Ensure the following are in place before you begin:
+
+- **Docker and Docker Compose** — all backing services run in containers.
+- **Node.js 24.x** — required if you are running the applications outside of containers.
+- **~8 GB of RAM** for the full stack. Document parsing is the most memory-intensive component; see the services table below for a breakdown.
+
+A GPU is only needed if you plan to serve language models on your own hardware. Everything else runs on CPU.
+
+## Manual deployment
+
+<Steps>
+  <Step title="Start the backing services">
+    From the root of your cloned repository, bring up the full set of infrastructure services:
+
+    ```bash
+    npm run ragen:up:full
+    ```
+
+    This starts Postgres, Qdrant, Temporal, LiteLLM, Docling, and Redis in Docker. The applications themselves run on the host with hot reload.
+
+    <Note>
+      If you only want to query existing knowledge bases and do not need document ingestion, use the lighter stack instead — it omits Temporal, so there is nothing for the worker to connect to:
+
+      ```bash
+      npm run ragen:up:app    # Postgres, Qdrant, and LiteLLM only
+      ```
+
+      To run every application in containers as well, `npm run ragen:up:everything` builds and starts the web app, API, worker, and admin panel alongside all services.
+    </Note>
+  </Step>
+
+  <Step title="Install dependencies">
+    Install Node.js dependencies across the entire monorepo:
+
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step title="Generate the Prisma client">
+    The Prisma client is generated from the schema and is not committed to the repository. Nothing builds without it:
+
+    ```bash
+    npm run generate:types
+    ```
+
+    <Warning>
+      This step is not optional on a fresh checkout. Skipping it causes obscure build failures far removed from the actual cause.
+    </Warning>
+  </Step>
+
+  <Step title="Run database migrations">
+    Apply the Prisma schema to your database:
+
+    ```bash
+    npx prisma migrate deploy
+    ```
+
+    This command reads `DATABASE_URL` directly from the environment — make sure that variable is set before you run it.
+  </Step>
+
+  <Step title="Seed the database">
+    Write the internal subscription plans that every organization is created against:
+
+    ```bash
+    npm run db:seed
+    ```
+
+    This is not optional — without it, organization creation fails. It reads configuration from `.env.local`.
+  </Step>
+
+  <Step title="Start the applications">
+    Start each application in a separate terminal. There is no single root `dev` command because these are separate processes with separate lifetimes:
+
+    ```bash
+    npm run api:dev      # apps/api    — http://localhost:3001
+    ```
+
+    ```bash
+    npm run web:dev      # apps/web    — http://localhost:3000
+    ```
+
+    ```bash
+    npm run worker:dev   # apps/worker — document ingestion
+    ```
+
+    ```bash
+    npm run admin:dev    # apps/admin  — http://localhost:3200 (optional)
+    ```
+
+    <Warning>
+      `apps/api` is **not optional**. The web app delegates thread creation, the thread sidebar, and notifications to it. Running only the web app gives you a panel that loads and a chat that cannot open a thread.
+    </Warning>
+
+    <Note>
+      `apps/worker` is what makes an uploaded document searchable. It is not in `docker-compose.yml` — it runs on the host and connects to Temporal. Without it, uploads succeed and then sit unparsed indefinitely. The worker validates its own environment at boot and exits with the missing variable named rather than starting in a broken state.
+    </Note>
+  </Step>
+</Steps>
+
+## Services
+
+Every service has a specific role in the stack. Removing one affects only the capabilities it provides.
+
+| Service | Needed for |
+|---------|------------|
+| Postgres | Everything — the primary application database |
+| Qdrant | Vector search and document retrieval |
+| LiteLLM | Every model call: chat, embeddings, and reranking |
+| Temporal | Asynchronous document ingestion workflows |
+| Docling | Local document parsing and OCR |
+| Redis | Required by the worker; gracefully degraded for the web app |
+| Presidio | Personal-data detection — optional, off by default |
+
+<Note>
+  **Redis** deserves a careful reading of "optional." `apps/worker` requires `REDIS_URL` and refuses to start without it — it caches organization settings there. `apps/web` treats its absence as a real mode rather than a degraded one: settings are computed directly and the public chatbot rate limiter fails open, so rate limiting is disabled rather than enforced. `apps/api` never reads Redis at all; its rate limiter is in-memory.
+</Note>
+
+## Feature flags
+
+Feature flags are environment variables that turn capabilities on or off. Set them in your `.env.local` file.
+
+The following flags are **off by default** — set them to `1` to enable:
+
+| Flag | Effect |
+|------|--------|
+| `FEATURE_FLAG_PII_MASKING` | Detect and mask personal data via Presidio before it reaches the model. Requires two extra containers (Presidio analyzer and anonymizer), which together use ~1 GB of RAM — that is why it is opt-in. |
+| `FEATURE_FLAG_RERANKING` | Re-score retrieved chunks with a cross-encoder reranker before generating the answer. Requires `SCW_API_BASE` and `SCW_API_KEY` for the default Scaleway reranker, so it stays off until you supply credentials. |
+| `DOCLING_STRICT` | Fail document ingestion rather than fall back to a parser that sends documents to an external model. Set this for any deployment where documents must not leave your network. |
+
+The following flag is **on by default** — set it to `0` to disable:
+
+| Flag | Effect |
+|------|--------|
+| `FEATURE_FLAG_DOC_SUMMARIES` | Generate a summary chunk for each document at ingest time. This summary chunk improves retrieval quality for broad questions. Disable it to reduce ingestion time and Qdrant storage. |
+
+<Note>
+  Multi-query expansion has no environment flag. It is a per-organization setting — defaulting to on — under **Organization → RAG settings**, alongside per-organization toggles for reranking and content moderation.
+</Note>
+
+## Minimum environment
+
+The variables below are the minimum required for a working Ragen installation. Copy this block into your `.env.local` and replace each placeholder with a real value.
+
+```bash title=".env.local"
+DATABASE_URL="postgresql://postgres:<GENERATED_DB_PASSWORD>@localhost:55432/ragen"
+DATABASE_DIRECT_URL="postgresql://postgres:<GENERATED_DB_PASSWORD>@localhost:55432/ragen"
+
+REDIS_URL=redis://localhost:56379
+QDRANT_URL=http://localhost:6333
+LITELLM_PROXY_URL=http://localhost:4000
+LITELLM_MASTER_KEY=<GENERATED_LITELLM_MASTER_KEY>
+
+DEFAULT_MODEL_PROVIDER=litellm
+DEFAULT_MODEL=gemini-3-flash-preview
+EMBEDDINGS_MODEL=bge-multilingual-gemma2
+
+BETTER_AUTH_SECRET=<random-secret>
+SESSION_AUTH_SECRET=<random-secret>
+```
+
+<Warning>
+  Every `<GENERATED_...>` and `<random-secret>` placeholder must be replaced with its own unique, securely generated value. Do not share secrets between environments or use predictable values in production.
+</Warning>
+
+For production, add an `ENCRYPTION_PROVIDER`, a persistent storage path or S3 credentials, and `DOCLING_STRICT=1` if documents must not leave your network. The full variable reference — including which provider makes which variable mandatory — is in the [configuration reference](/configuration/environment).
+
+## Running without internet access
+
+Ragen's architecture is designed to support fully air-gapped deployments: the model layer is decoupled behind LiteLLM, and document parsing is local by default. Two honest caveats apply before you commit to this path.
+
+**It is deployment work, not a flag.** Serving a capable model on your own hardware means provisioning GPU capacity. Locally-served open models generally perform less well than commercial ones on complex questions — how much less depends on your documents and your questions, so measure it on your own material first.
+
+**Container images are pulled at install time.** After that, outbound traffic can be cut entirely, with updates delivered as images to your internal registry.
+
+<Warning>
+  When running without internet access, set all of the following:
+
+  - `DEFAULT_MODEL`, `EMBEDDINGS_MODEL`, and any reranker configuration must point at your local endpoints
+  - `DOCLING_STRICT=1` — without this, a Docling failure silently sends documents to an external model
+  - `MAIL_PROVIDER=console` — nothing is sent; an administrator creates each account directly and hands over the generated password out of band
+
+  Without `DOCLING_STRICT=1`, a single parsing failure is enough to send a document off your network.
+</Warning>
+
+## Running in production
+
+A local development setup is not suitable for production. Three areas require deliberate decisions before you expose Ragen to real users.
+
+### Encryption
+
+**Ragen starts normally with no key provider and stores message content unencrypted.** That is fine for local development and wrong for production.
+
+Set `ENCRYPTION_PROVIDER` to one of the following values and supply the matching key material:
+
+| Value | Provider |
+|-------|----------|
+| `scaleway` | Scaleway Key Manager |
+| `kms` | AWS KMS |
+| `local` | A locally-managed key (not recommended for multi-replica deployments) |
+
+Verify encryption is active by checking that new threads have `encryptedDek` populated in your database after the change.
+
+### Storage
+
+`STORAGE_PROVIDER=local` writes uploaded files to `STORAGE_LOCAL_PATH` (defaults to `./data/storage`). **Mount a persistent volume at that path**, or a restart loses every uploaded document.
+
+<Warning>
+  Do not use `local` storage in a multi-replica deployment. Replicas cannot read each other's files. Ragen logs a warning at startup if you set `TARGET_ENV=production` or `staging` while using local storage.
+</Warning>
+
+For production and multi-replica setups, use `STORAGE_PROVIDER=s3`, which works with any S3-compatible object store:
+
+```bash title=".env.local"
+STORAGE_PROVIDER=s3
+S3_ENDPOINT_URL=https://your-s3-compatible-endpoint
+S3_ACCESS_KEY_ID=your-access-key
+S3_SECRET_ACCESS_KEY=your-secret-key
+S3_BUCKET_NAME=your-bucket
+```
+
+<Note>
+  Use `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` — not `AWS_`-prefixed variables. The `AWS_` prefix is reserved for real AWS Bedrock and KMS configuration, which a deployment can use at the same time as non-AWS S3 storage.
+</Note>
+
+### Embedding model and vector dimensions
+
+`EMBEDDINGS_MODEL` defaults to `bge-multilingual-gemma2`, which produces **3584-dimensional** vectors. `VECTOR_SIZE` must match this value, or Qdrant rejects every upsert.
+
+If you switch to a different embedding model, update `VECTOR_SIZE` accordingly:
+
+| Model | VECTOR_SIZE |
+|-------|-------------|
+| `bge-multilingual-gemma2` (default) | `3584` |
+| `cohere-embed-multilingual-v3` | `1024` |
+
+<Warning>
+  Changing the embedding model after documents are already indexed makes all existing vectors incompatible with the new model. You must re-index everything when you change `EMBEDDINGS_MODEL`.
+</Warning>

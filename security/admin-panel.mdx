@@ -1,0 +1,105 @@
+---
+title: 'Managing Your Ragen Installation with the Admin Panel'
+sidebarTitle: 'Admin Panel'
+description: 'Use the Ragen admin panel to manage organisations, users, API keys, feature flags, usage, and security events across your installation.'
+---
+
+The admin panel at port `3200` is for the person who runs the Ragen installation — not for the people who use it. It gives you a cross-organisation view of everything: who is on the platform, how much they're using, which connectors are failing, and what security events have occurred. The main app at `:3000` handles day-to-day work inside a single organisation; the admin panel handles the infrastructure around all of them.
+
+## Who can access the admin panel
+
+Access to the panel is controlled by `User.role = 'admin'` — the platform administrator role. This is different from being an organisation owner or admin inside the main app. The dashboard layout re-reads this role from the database on every request, so revoking it takes effect immediately rather than waiting for a session to expire.
+
+| Surface | Who reaches it | Scope |
+|---|---|---|
+| Main app (`:3000`) | Organisation owners and admins | Their own organisation only |
+| Admin panel (`:3200`) | Users with `User.role = 'admin'` | The entire installation |
+
+## Getting in
+
+<Steps>
+  <Step title="Create the first account">
+    Create your platform administrator account by completing the first-run setup screen when you first deploy Ragen. That account is automatically granted the platform admin role.
+  </Step>
+  <Step title="Open the admin panel">
+    Navigate to `http://localhost:3200` (or your deployed admin URL). Sign in with the same email and password you use for the main app.
+  </Step>
+  <Step title="Grant access to others">
+    From the **Users** section of the panel, find the account you want to promote and grant it the platform admin role. The account must already exist — the panel does not create accounts.
+  </Step>
+</Steps>
+
+Google sign-in is available as an optional convenience. The sign-in button appears only when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are configured. Password sign-in always works for the platform administrator regardless. See [OAuth Sign-In](/integrations/oauth) for setup details.
+
+## Panel sections
+
+| Section | What you can do |
+|---|---|
+| **Organizations** | View all organisations, manage members and roles, view settings, monitor usage, and review audit entries per organisation |
+| **Users** | Rename accounts, ban or unban users, grant or revoke the platform admin role |
+| **Features** | Set platform-wide feature flag defaults; see which layer (org override / plan / platform default / built-in) is resolving each flag for any org |
+| **Limits & Models** | Set storage ceilings, monthly token and cost caps, member caps, model allowlists, and RAG pipeline settings — per organisation and as platform defaults |
+| **API Keys** | View every API key on the installation with its organisation, project, creator, debug mode status, and last-used date; deactivate or permanently revoke any key |
+| **Connector Health** | See which MCP connectors are failing, why, and how long ago; force reconnect for connectors with revoked or invalid credentials |
+| **Proxy** | View LiteLLM proxy status — healthy and unhealthy deployments, which models are actually available, and per-organisation spend vs. budget |
+| **Usage** | AI usage (tokens and estimated cost per model call) and disk usage per organisation, filterable by period |
+| **Activity & Incidents** | Audit log of all admin panel actions plus the security event log with inline resolution tracking and email alert configuration |
+
+## Managing organisations
+
+The **Organizations** section shows every organisation on your installation. Each organisation's detail page lets you:
+
+- View and edit membership (add a user who already has an account, change their role, or remove them)
+- Review the organisation's settings, subscription limits, and storage usage
+- Browse recent audit log entries for that organisation
+
+<Note>
+  Two membership changes are permanently refused: you cannot remove or demote the last owner of an organisation, and you cannot add an account that doesn't exist yet. The panel manages membership — it does not create accounts.
+</Note>
+
+## Managing API keys
+
+The **API Keys** section lists every key across the installation. The **Last Used** column is the most important one: a key that has never been called is a good candidate for revocation.
+
+Two separate controls let you act on a key:
+
+| Action | What it does | Reversible? |
+|---|---|---|
+| **Deactivate** | Clears `isActive`; the key stops authenticating immediately | Yes — the secret is preserved |
+| **Revoke** | Deactivates the key, deletes the secret from the Token Vault, then deletes the row | No |
+
+<Warning>
+  Revoking a key requires `RAGEN_TOKEN_VAULT_URL` and `RAGEN_TOKEN_VAULT_SERVICE_SECRET` to be configured on the admin panel. Without them, the panel still lists and deactivates keys but shows a warning explaining why **Revoke** is unavailable. If the vault is unreachable mid-revoke, the key is left deactivated with its row intact — the panel tells you the secret survived rather than deleting the only record of it.
+</Warning>
+
+## Applying limit defaults to existing organisations
+
+When you update a platform-wide default in **Limits & Models**, that default applies only to *newly created* organisations. Use **Apply Defaults** to propagate a change to existing organisations. The panel shows you exactly which values would change before writing anything.
+
+<Info>
+  **Apply Defaults** raises and lowers values but never removes them — a blank default cannot be distinguished from "leave this organisation alone." The fields it will skip are listed by name in the preview.
+</Info>
+
+## Activity log and security incidents
+
+Every mutating action in the panel is recorded with before-and-after values. Sensitive fields (masked API key values, tokens) are redacted before the entry is written.
+
+**Incidents** is the security-event view. It shows failed sign-ins, brute-force detection, connector authorisation failures, rate-limit breaches, and cross-organisation access attempts. You can mark events as resolved, and that resolution is recorded too.
+
+<Note>
+  Configure email alerts for security events with `SECURITY_ALERT_EMAIL` and `SECURITY_ALERT_SEVERITY`. The severity threshold defaults to `critical`. Alerts are deduplicated over 15 minutes and capped per hour to prevent alert flooding during an incident.
+</Note>
+
+## What the panel deliberately cannot do
+
+**Read anyone's conversations.** The panel has no message viewer and no impersonation capability. An operator does not need to read customer messages to run the platform. Thread content is encrypted per organisation, and the panel holds no path to decrypt it.
+
+This is enforced, not merely absent. The Better Auth `admin` plugin ships an impersonate endpoint at `POST /api/auth/admin/impersonate-user`. Rather than leaving it accessible while removing the UI button, Ragen defines the platform admin role without the `user: ["impersonate"]` permission — the route itself rejects requests from platform admins.
+
+**Create user accounts.** The panel grants roles and manages membership. The account must exist first, created by the user themselves through the main app.
+
+**Export everything at once.** Thread export is per-thread, scoped to one organisation, and requires ownership or org-admin access. There is no bulk export-everything route — this is a deliberate decision, not an oversight.
+
+**Undo a propagation.** Applying defaults to existing organisations writes customer-visible settings with no revert path. The preview step before applying is the only undo mechanism.
+
+These constraints exist because operator convenience and user privacy are in tension at the platform level. The panel is designed to give you everything you need to run the installation without giving you everything that exists in it.

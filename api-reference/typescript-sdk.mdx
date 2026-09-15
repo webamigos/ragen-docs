@@ -1,0 +1,357 @@
+---
+title: 'Ragen AI TypeScript SDK Reference'
+sidebarTitle: 'TypeScript SDK'
+description: 'Complete reference for @webamigos/ragen-sdk-ts: typed API client with streaming, auto-retry, file upload helpers, and edge runtime support.'
+---
+
+The official `@webamigos/ragen-sdk-ts` package wraps the Ragen REST API with fully typed responses, first-class streaming support, automatic retry on 429 and 5xx responses, and convenience helpers for file upload — so you can focus on building your integration rather than wiring HTTP calls by hand. It works in Node.js 18+, edge runtimes (Vercel Edge, Cloudflare Workers), and the browser.
+
+## Installation
+
+```bash
+npm install @webamigos/ragen-sdk-ts
+# or
+pnpm add @webamigos/ragen-sdk-ts
+# or
+yarn add @webamigos/ragen-sdk-ts
+```
+
+## Configuration
+
+Pass a configuration object when you construct the client. Only `apiKey` and `baseURL` are required — everything else has a sensible default.
+
+| Option        | Type           | Default                      | Description                                                           |
+| ------------- | -------------- | ---------------------------- | --------------------------------------------------------------------- |
+| `apiKey`      | `string`       | `process.env.RAGEN_API_KEY`  | Your Ragen API key. Required.                                         |
+| `assistantId` | `string`       | —                            | Default assistant used when you don't pass `assistantId` per call.    |
+| `baseURL`     | `string`       | `process.env.RAGEN_BASE_URL` | Base URL of your Ragen instance, e.g. `http://localhost:3001/v1`.     |
+| `maxRetries`  | `number`       | `2`                          | How many times to retry on 429/5xx and transient network errors.      |
+| `timeout`     | `number` (ms)  | `30000`                      | Per-request timeout in milliseconds.                                  |
+| `fetch`       | `typeof fetch` | `globalThis.fetch`           | Custom `fetch` implementation — useful for testing or older runtimes. |
+
+### Initializing the client
+
+```ts
+import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+const ragen = new Ragen({
+  apiKey: process.env.RAGEN_API_KEY,
+  baseURL: process.env.RAGEN_BASE_URL ?? 'http://localhost:3001/v1',
+});
+```
+
+<Tip>
+  If most of your calls target the same assistant, set `assistantId` on the client once and omit it from every individual call.
+</Tip>
+
+```ts
+const ragen = new Ragen({
+  apiKey: process.env.RAGEN_API_KEY,
+  baseURL: process.env.RAGEN_BASE_URL ?? 'http://localhost:3001/v1',
+  assistantId: '123e4567-e89b-12d3-a456-426614174000',
+});
+```
+
+---
+
+## Methods
+
+<Tabs>
+  <Tab title="Chat Completions">
+    Chat completions are the core of Ragen — they send a message to an assistant, trigger retrieval from the knowledge base, and return a grounded answer.
+
+    ### `ragen.chat.completions.create(params)`
+
+    Returns a single completion object. Use this when you want to wait for the full answer before doing anything with it.
+
+    ```ts
+    const completion = await ragen.chat.completions.create({
+      assistantId: '123e4567-e89b-12d3-a456-426614174000',
+      messages: [{ role: 'user', content: 'What is our refund policy?' }],
+    });
+
+    console.log(completion.choices[0].message.content);
+    ```
+
+    ### `ragen.chat.completions.stream(params)`
+
+    Returns an async iterable of SSE chunks. Use this to forward tokens to the user as they arrive.
+
+    ```ts
+    const stream = ragen.chat.completions.stream({
+      assistantId: '123e4567-e89b-12d3-a456-426614174000',
+      messages: [{ role: 'user', content: 'Summarize our onboarding process' }],
+      stream_options: { include_usage: true },
+    });
+
+    for await (const chunk of stream) {
+      process.stdout.write(chunk.choices[0]?.delta?.content ?? '');
+      if (chunk.usage) {
+        console.log(`\n\nUsed ${chunk.usage.total_tokens} tokens`);
+      }
+    }
+    ```
+
+    ### `ragen.chat.completions.streamToString(params)`
+
+    Convenience wrapper that collects the entire streamed response into a single string.
+
+    ```ts
+    const text = await ragen.chat.completions.streamToString({
+      assistantId: '123e4567-e89b-12d3-a456-426614174000',
+      messages: [{ role: 'user', content: 'Summarize the employee handbook' }],
+    });
+
+    console.log(text);
+    ```
+  </Tab>
+
+  <Tab title="Files">
+    Upload documents to a knowledge base and manage existing files. After uploading, a file must finish processing (embedding generation) before it contributes to answers.
+
+    | Method                                  | Description                                          |
+    | --------------------------------------- | ---------------------------------------------------- |
+    | `ragen.files.upload(file, options)`     | Upload a file. Returns immediately with file metadata. |
+    | `ragen.files.waitUntilProcessed(fileId)` | Poll until the file's status is `processed`.         |
+    | `ragen.files.uploadAndWait(file, options)` | Upload **and** poll in a single call — the simplest option for most use cases. |
+    | `ragen.files.list(query)`               | List files, with optional pagination.                |
+    | `ragen.files.retrieve(id)`              | Fetch metadata for a single file.                    |
+    | `ragen.files.delete(id)`               | Permanently delete a file.                           |
+
+    ```ts
+    // Upload and wait for processing in one call
+    const file = await ragen.files.uploadAndWait('./handbook.pdf');
+    console.log('File ready:', file.id);
+
+    // Or upload and wait separately
+    const uploaded = await ragen.files.upload('./report.pdf');
+    await ragen.files.waitUntilProcessed(uploaded.id);
+
+    // List, retrieve, delete
+    const { data } = await ragen.files.list({ limit: 50 });
+    const details = await ragen.files.retrieve(uploaded.id);
+    await ragen.files.delete(uploaded.id);
+    ```
+  </Tab>
+
+  <Tab title="Assistants">
+    Assistants are Ragen projects — each one has its own knowledge base, instructions, and configuration. Manage them programmatically when you need to provision projects as part of your application lifecycle.
+
+    | Method                                     | Description                          |
+    | ------------------------------------------ | ------------------------------------ |
+    | `ragen.assistants.create(params)`          | Create a new assistant.              |
+    | `ragen.assistants.list()`                  | List all assistants in your org.     |
+    | `ragen.assistants.retrieve(id)`            | Fetch a single assistant by ID.      |
+    | `ragen.assistants.modify(id, params)`      | Update an assistant's name or instructions. |
+    | `ragen.assistants.delete(id)`              | Delete an assistant and its knowledge base. |
+
+    ```ts
+    // Create an assistant
+    const assistant = await ragen.assistants.create({
+      name: 'Support Bot',
+      instructions: 'Answer questions using the uploaded documentation. Be concise.',
+    });
+
+    // Retrieve and update
+    await ragen.assistants.retrieve(assistant.id);
+    await ragen.assistants.modify(assistant.id, { name: 'Support Bot v2' });
+
+    // List all assistants
+    const { data } = await ragen.assistants.list();
+    data.forEach((a) => console.log(a.id, a.name));
+
+    // Delete
+    await ragen.assistants.delete(assistant.id);
+    ```
+  </Tab>
+
+  <Tab title="Threads">
+    Threads store conversation history, letting you build multi-turn chat experiences. Each message you add to a thread is persisted server-side and included in subsequent completions automatically.
+
+    <Note>
+      Thread-based completions are only stored when **Debug mode** is enabled on the API key. See [API Keys](/api-reference/authentication) for details.
+    </Note>
+
+    | Method                                          | Description                              |
+    | ----------------------------------------------- | ---------------------------------------- |
+    | `ragen.threads.create(params)`                  | Create a new thread.                     |
+    | `ragen.threads.retrieve(id)`                    | Fetch a thread by ID.                    |
+    | `ragen.threads.messages.create(threadId, params)` | Add a message to a thread.               |
+    | `ragen.threads.messages.list(threadId)`         | Retrieve all messages in a thread.       |
+
+    ```ts
+    // Create a thread and add messages
+    const thread = await ragen.threads.create({});
+
+    await ragen.threads.messages.create(thread.id, {
+      role: 'user',
+      content: 'What is the cancellation policy?',
+    });
+
+    // Retrieve conversation history
+    const { data: messages } = await ragen.threads.messages.list(thread.id);
+    messages.forEach((m) => console.log(m.role, m.content));
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Error Handling
+
+All errors thrown by the SDK extend `RagenError`, which carries a `status` code, a `code` string, and a human-readable `message`. Pattern-match on the subclass to handle specific failure modes:
+
+| Class                 | HTTP Status | When it occurs                               |
+| --------------------- | ----------- | -------------------------------------------- |
+| `RagenAuthError`      | 401         | Missing, invalid, or deactivated API key.    |
+| `RagenNotFoundError`  | 404         | The requested resource doesn't exist.        |
+| `RagenRateLimitError` | 429         | Rate limit hit (already auto-retried).       |
+| `RagenAPIError`       | 5xx         | Server error (already auto-retried).         |
+| `RagenError`          | any         | Base class for any other SDK error.          |
+
+The SDK automatically retries 429 and 5xx responses with exponential backoff and jitter, up to `maxRetries` times (default `2`). When the SDK throws `RagenRateLimitError` or `RagenAPIError`, it has already exhausted all retries.
+
+```ts
+import {
+  RagenAuthError,
+  RagenNotFoundError,
+  RagenRateLimitError,
+  RagenAPIError,
+  RagenError,
+} from '@webamigos/ragen-sdk-ts';
+
+try {
+  const completion = await ragen.chat.completions.create({
+    assistantId: '123e4567-e89b-12d3-a456-426614174000',
+    messages: [{ role: 'user', content: 'Hi' }],
+  });
+  console.log(completion.choices[0].message.content);
+} catch (err) {
+  if (err instanceof RagenRateLimitError) {
+    // 429 — already retried maxRetries times; surface to the caller
+    console.error('Rate limit exceeded. Please try again later.');
+  } else if (err instanceof RagenAuthError) {
+    // 401 — check your API key
+    console.error('Invalid API key.');
+  } else if (err instanceof RagenNotFoundError) {
+    // 404 — wrong assistant ID or deleted resource
+    console.error('Resource not found:', err.message);
+  } else if (err instanceof RagenAPIError) {
+    // 5xx — server error, already retried
+    console.error('Server error:', err.status, err.message);
+  } else if (err instanceof RagenError) {
+    console.error('SDK error:', err.status, err.code, err.message);
+  } else {
+    throw err;
+  }
+}
+```
+
+---
+
+## Next.js App Router Streaming
+
+A common pattern is to proxy the SDK stream directly to the browser from an App Router Route Handler. The example below runs on the edge runtime and streams tokens as plain text:
+
+```ts title="app/api/chat/route.ts"
+import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+export const runtime = 'edge';
+
+const ragen = new Ragen({
+  apiKey: process.env.RAGEN_API_KEY!,
+  assistantId: process.env.RAGEN_ASSISTANT_ID!,
+  baseURL: process.env.RAGEN_BASE_URL!,
+});
+
+export async function POST(req: Request): Promise<Response> {
+  const { messages } = await req.json();
+  const stream = ragen.chat.completions.stream({ messages });
+
+  const encoder = new TextEncoder();
+  const readable = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const chunk of stream) {
+          const piece = chunk.choices[0]?.delta?.content;
+          if (piece) {
+            controller.enqueue(encoder.encode(piece));
+          }
+        }
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    },
+  });
+}
+```
+
+---
+
+## Using the Raw OpenAI Client
+
+If you are working in Python, Go, or an environment where you already have the `openai` package installed, you can point the OpenAI client at your Ragen instance and use it directly — the chat completions endpoint is wire-compatible.
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    from openai import OpenAI
+
+    client = OpenAI(
+        api_key="YOUR_RAGEN_API_KEY",
+        base_url="http://localhost:3001/v1",
+    )
+
+    response = client.chat.completions.create(
+        model="any",          # ignored by Ragen; model is set per-assistant
+        messages=[{"role": "user", "content": "What is our refund policy?"}],
+        extra_body={"assistant_id": "123e4567-e89b-12d3-a456-426614174000"},
+    )
+    print(response.choices[0].message.content)
+    ```
+  </Tab>
+  <Tab title="openai-node">
+    ```ts
+    import OpenAI from 'openai';
+
+    const openai = new OpenAI({
+      apiKey: 'YOUR_RAGEN_API_KEY',
+      baseURL: 'http://localhost:3001/v1',
+    });
+
+    const completion = await openai.chat.completions.create({
+      model: 'any',          // ignored by Ragen; model is set per-assistant
+      messages: [{ role: 'user', content: 'What is our refund policy?' }],
+      // @ts-ignore — Ragen-specific extension
+      assistant_id: '123e4567-e89b-12d3-a456-426614174000',
+    });
+
+    console.log(completion.choices[0].message.content);
+    ```
+  </Tab>
+  <Tab title="curl">
+    ```bash
+    curl -X POST http://localhost:3001/v1/chat/completions \
+      -H "Authorization: Bearer YOUR_RAGEN_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "assistant_id": "123e4567-e89b-12d3-a456-426614174000",
+        "messages": [
+          { "role": "user", "content": "What is our refund policy?" }
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  The TypeScript SDK (`@webamigos/ragen-sdk-ts`) is the recommended integration path. It provides type safety, auto-retry, streaming helpers, and file upload utilities that aren't available through the raw OpenAI client.
+</Note>

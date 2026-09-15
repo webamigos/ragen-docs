@@ -1,0 +1,242 @@
+---
+title: 'Threads and Messages API — Conversation Persistence'
+sidebarTitle: 'Threads'
+description: 'OpenAI-compatible endpoints for creating threads and storing messages. Does not run the model — use Chat Completions for AI generation.'
+---
+
+Threads and messages in Ragen are **pure persistence** — they store conversation history in a structured, retrievable format. They do not run the language model or the RAG pipeline. When you need an AI-generated reply, call [Chat Completions](/api-reference/chat-completions) with your messages inline, then persist the result back to the thread yourself. This separation gives you full control over what gets saved and when.
+
+<Note>
+  The OpenAI Runs API (`POST /v1/threads/{id}/runs`), which automates the generate-and-save loop, is not yet implemented in Ragen. Use the manual loop described below in [Generating AI responses](#generating-ai-responses).
+</Note>
+
+## Threads endpoints
+
+```
+POST   /v1/threads
+GET    /v1/threads              (Ragen extension — OpenAI doesn't expose list)
+GET    /v1/threads/{id}
+POST   /v1/threads/{id}        (OpenAI convention — modify)
+PATCH  /v1/threads/{id}        (REST alias)
+DELETE /v1/threads/{id}
+```
+
+**Authentication:**
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+### Create a thread
+
+`POST /v1/threads`
+
+<ParamField body="messages" type="array">
+  Optional array of messages to seed the thread with on creation. Each message has a `role` (`user` or `assistant`) and a `content` string.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Arbitrary key-value metadata. Accepted and returned as-is.
+</ParamField>
+
+<ParamField body="title" type="string">
+  **Ragen extension.** Thread title displayed in the dashboard sidebar.
+</ParamField>
+
+<ParamField body="assistant_id" type="string">
+  **Ragen extension.** Bind the thread to a specific assistant using its `asst-<projectId>` ID. Defaults to the API key's bound project.
+</ParamField>
+
+### List threads
+
+`GET /v1/threads` — returns threads across your organization.
+
+<ParamField query="limit" type="integer" default="20">
+  Between 1 and 100.
+</ParamField>
+
+<ParamField query="order" type="string" default="desc">
+  Sort order by `created_at`. Either `asc` or `desc`.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Thread ID cursor — returns threads created after the given ID.
+</ParamField>
+
+### Modify a thread
+
+Both `POST /v1/threads/{id}` and `PATCH /v1/threads/{id}` accept `title` (Ragen extension) and `metadata`.
+
+### Delete a thread
+
+`DELETE /v1/threads/{id}` — deletes the thread **and all its messages**. Returns:
+
+```json
+{ "id": "thread-abc123", "object": "thread.deleted", "deleted": true }
+```
+
+## Messages endpoints
+
+```
+POST   /v1/threads/{id}/messages
+GET    /v1/threads/{id}/messages
+GET    /v1/threads/{id}/messages/{message_id}
+DELETE /v1/threads/{id}/messages/{message_id}
+```
+
+### Create a message
+
+`POST /v1/threads/{id}/messages` — persists one turn on the thread. **Does not run the model.** Use [Chat Completions](/api-reference/chat-completions) when you need an AI-generated reply.
+
+<ParamField body="role" type="string" required>
+  Either `user` (human turn) or `assistant` (AI turn, useful for backfilling history or importing transcripts).
+</ParamField>
+
+<ParamField body="content" type="string" required>
+  The message text.
+</ParamField>
+
+### List and retrieve messages
+
+`GET /v1/threads/{id}/messages` returns OpenAI `thread.message` objects with a typed `content` array. Each item is currently always a single `text` block — Ragen doesn't store multimodal messages on threads today.
+
+`GET /v1/threads/{id}/messages/{message_id}` retrieves a single message.
+
+### Encrypted threads
+
+Threads created through the Ragen dashboard with encryption enabled (when `AWS_KMS_KEY_ID` is configured) store message content as ciphertext. The API cannot decrypt this content — read endpoints return a placeholder:
+
+```json
+{
+  "role": "user",
+  "content": [
+    {
+      "type": "text",
+      "text": {
+        "value": "[encrypted — open this thread in the dashboard to view]",
+        "annotations": []
+      }
+    }
+  ]
+}
+```
+
+Threads created through the API are never encrypted, so API-first workflows see plaintext throughout.
+
+## Generating AI responses
+
+Threads are storage only. To generate a response and persist it, follow this manual loop:
+
+<Steps>
+  <Step title="Persist the user's message">
+    ```http
+    POST /v1/threads/{thread_id}/messages
+    { "role": "user", "content": "What is our return policy?" }
+    ```
+  </Step>
+  <Step title="Call Chat Completions to run RAG">
+    Pass the conversation history inline. Ragen retrieves relevant chunks and generates the reply.
+
+    ```http
+    POST /v1/chat/completions
+    {
+      "assistant_id": "asst-abc123",
+      "messages": [
+        { "role": "user", "content": "What is our return policy?" }
+      ]
+    }
+    ```
+  </Step>
+  <Step title="Persist the assistant's reply">
+    Save the generated reply back to the thread.
+
+    ```http
+    POST /v1/threads/{thread_id}/messages
+    { "role": "assistant", "content": "<reply from step 2>" }
+    ```
+  </Step>
+</Steps>
+
+## Examples
+
+<Tabs>
+  <Tab title="TypeScript SDK">
+    ```typescript
+    import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+    const ragen = new Ragen({ apiKey: process.env.RAGEN_API_KEY });
+
+    // Create a thread
+    const thread = await ragen.beta.threads.create({
+      title: 'Support conversation',
+      assistant_id: 'asst-abc123',
+    });
+
+    // Add a user message
+    await ragen.beta.threads.messages.create(thread.id, {
+      role: 'user',
+      content: 'What is our return policy?',
+    });
+
+    // Generate a reply
+    const completion = await ragen.chat.completions.create({
+      assistantId: 'asst-abc123',
+      messages: [{ role: 'user', content: 'What is our return policy?' }],
+    });
+    const reply = completion.choices[0].message.content;
+
+    // Persist the reply
+    await ragen.beta.threads.messages.create(thread.id, {
+      role: 'assistant',
+      content: reply,
+    });
+
+    // Read all messages
+    const messages = await ragen.beta.threads.messages.list(thread.id);
+    for (const m of messages.data) {
+      console.log(m.role, m.content[0].text.value);
+    }
+    ```
+  </Tab>
+  <Tab title="Python (openai SDK)">
+    ```python
+    import os
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url=os.environ["RAGEN_BASE_URL"],
+        api_key=os.environ["RAGEN_API_KEY"],
+    )
+
+    # Create a thread with seed messages
+    t = client.beta.threads.create(
+        messages=[
+            {"role": "user", "content": "Hi!"},
+            {"role": "assistant", "content": "Hello — how can I help?"},
+        ],
+        metadata={"channel": "support"},
+    )
+    print(t.id)
+
+    # Add a message
+    client.beta.threads.messages.create(
+        t.id,
+        role="user",
+        content="What was my last question?",
+    )
+
+    # List messages
+    for m in client.beta.threads.messages.list(t.id):
+        print(m.role, m.content[0].text.value)
+
+    # Delete thread
+    client.beta.threads.delete(t.id)
+    ```
+  </Tab>
+</Tabs>
+
+## Rate limits
+
+| Scope | Limit |
+|---|---|
+| All threads + messages endpoints | 20 requests / minute per IP |

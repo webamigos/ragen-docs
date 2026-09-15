@@ -1,0 +1,172 @@
+---
+title: 'Configuring AI Language Model Providers in Ragen AI'
+sidebarTitle: 'Models'
+description: 'Route all LLM calls through a LiteLLM proxy to any provider — OpenAI, Anthropic, Google, Bedrock, Scaleway, or a local vLLM/Ollama server.'
+---
+
+Every model call Ragen makes — answering questions, rephrasing queries, summarising documents, and generating embeddings — routes through a single LiteLLM proxy. You set `LITELLM_PROXY_URL` to tell Ragen where that proxy lives, and you configure the models themselves in `infra/litellm/config.yaml`. The environment variables below tell each part of the application which model name to request from the proxy.
+
+## Model Roles
+
+Ragen calls language models in four distinct roles. Each role has its own environment variable and its own default, and each default points to a cloud-hosted model. Set all four when you want full control over costs, privacy, or latency.
+
+| Role | Environment Variable | Default | Called When |
+|---|---|---|---|
+| Chat / answering | `DEFAULT_MODEL` | `gemini-3-flash-preview` | Every question a user asks |
+| Rephrase + multi-query expansion | `REPHRASE_MODEL` | `gemini-2.5-flash` | Before retrieval on every question |
+| Document summary at ingest | `SUMMARY_MODEL` | `gemini-2.5-flash` | When `FEATURE_FLAG_DOC_SUMMARIES=1` is set |
+| Embeddings | `EMBEDDINGS_MODEL` | `bge-multilingual-gemma2` | Every document ingest and every query |
+
+<Warning>
+  `VECTOR_SIZE` must match the output dimensions of your `EMBEDDINGS_MODEL`. If they disagree, Qdrant will reject every vector upsert and document ingest will silently fail. The default `bge-multilingual-gemma2` model produces **3584**-dimensional vectors; `cohere-embed-multilingual-v3` produces **1024**. Check your model's specification rather than assuming.
+
+  Changing `EMBEDDINGS_MODEL` or `VECTOR_SIZE` after you have ingested documents invalidates the entire Qdrant collection. You must re-index all documents from scratch if you switch embedding models.
+</Warning>
+
+Set `DEFAULT_MODEL_PROVIDER=litellm` to route chat calls through the proxy:
+
+```bash
+DEFAULT_MODEL_PROVIDER=litellm
+DEFAULT_MODEL=gemini-3-flash-preview
+
+REPHRASE_MODEL=gemini-2.5-flash
+REPHRASE_TEMPERATURE=0.5
+
+SUMMARY_MODEL=gemini-2.5-flash
+
+EMBEDDINGS_MODEL=bge-multilingual-gemma2
+# VECTOR_SIZE=3584  # must match EMBEDDINGS_MODEL output dimensions
+```
+
+## Supported Providers
+
+The LiteLLM proxy supports every major LLM provider. Add the models you want to use to `infra/litellm/config.yaml`, then set the corresponding API key environment variable.
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="circle">
+    GPT-4o, o3, and all OpenAI models.
+
+    ```bash
+    OPENAI_API_KEY=sk-...
+    ```
+  </Card>
+  <Card title="Anthropic" icon="circle">
+    Claude 3.5, Claude 4, and Haiku variants.
+
+    ```bash
+    ANTHROPIC_API_KEY=sk-ant-...
+    ```
+  </Card>
+  <Card title="Google Vertex AI" icon="circle">
+    Gemini models via a GCP service account.
+
+    ```bash
+    VERTEX_PROJECT=your-gcp-project-id
+    VERTEX_LOCATION=europe-west1
+    VERTEX_CREDENTIALS={"type":"service_account",...}
+    ```
+  </Card>
+  <Card title="Google AI Studio" icon="circle">
+    Gemini models via a direct API key.
+
+    ```bash
+    GOOGLE_API_KEY=AIza...
+    ```
+  </Card>
+  <Card title="AWS Bedrock" icon="circle">
+    Claude, Cohere, and Titan models via Bedrock.
+
+    ```bash
+    AWS_ACCESS_KEY_ID=...
+    AWS_SECRET_ACCESS_KEY=...
+    AWS_DEFAULT_REGION=eu-central-1
+    ```
+  </Card>
+  <Card title="Azure OpenAI" icon="circle">
+    GPT models deployed to your Azure subscription.
+
+    ```bash
+    AZURE_OPENAI_KEY=...
+    AZURE_OPENAI_INSTANCE=your-instance-name
+    AZURE_OPENAI_DEPLOYMENT=your-deployment
+    AZURE_OPENAI_VERSION=2024-12-01-preview
+    ```
+  </Card>
+  <Card title="Scaleway" icon="circle">
+    Mistral, BGE embeddings, and other Scaleway Generative APIs.
+
+    ```bash
+    SCW_API_BASE=https://api.scaleway.ai/YOUR_PROJECT_ID/v1
+    SCW_API_KEY=...
+    ```
+  </Card>
+  <Card title="OpenRouter" icon="circle">
+    Access hundreds of models through a single API key.
+
+    ```bash
+    OPENROUTER_API_KEY=sk-or-...
+    # Optional: EU-only routing
+    OPENROUTER_BASE_URL=https://eu.openrouter.ai/api/v1
+    ```
+  </Card>
+  <Card title="vLLM (local)" icon="circle">
+    Self-hosted models via the vLLM OpenAI-compatible server.
+
+    See the [Local Models](/configuration/open-models) page for full setup instructions.
+  </Card>
+  <Card title="Ollama (local)" icon="circle">
+    Local models running in Ollama on your own hardware.
+
+    ```bash
+    OLLAMA_HOST=http://localhost:11434
+    ```
+
+    See the [Local Models](/configuration/open-models) page for full setup instructions.
+  </Card>
+</CardGroup>
+
+## Registering Models in LiteLLM
+
+Each model you want to use must appear in `infra/litellm/config.yaml`. The `model_name` field is the identifier you set in `DEFAULT_MODEL`, `REPHRASE_MODEL`, etc.
+
+```yaml title="infra/litellm/config.yaml"
+model_list:
+  - model_name: gemini-3-flash-preview
+    litellm_params:
+      model: vertex_ai/gemini-3-flash-preview
+      vertex_project: your-gcp-project-id
+      vertex_location: europe-west1
+
+  - model_name: gemini-2.5-flash
+    litellm_params:
+      model: vertex_ai/gemini-2.5-flash
+      vertex_project: your-gcp-project-id
+      vertex_location: europe-west1
+
+  - model_name: bge-multilingual-gemma2
+    litellm_params:
+      model: openai/bge-multilingual-gemma2
+      api_base: https://api.scaleway.ai/YOUR_PROJECT_ID/v1
+      api_key: os.environ/SCW_API_KEY
+```
+
+<Tip>
+  Verify that the proxy sees your registered models by running:
+
+  ```bash
+  curl http://localhost:4000/v1/models
+  ```
+
+  A model LiteLLM serves appears in the Ragen chat model picker automatically — the UI reads this endpoint at runtime. Models you have not registered in `config.yaml` will not appear, even if you set their name in an environment variable.
+</Tip>
+
+## Additional Model Settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `REPHRASE_TEMPERATURE` | `0.5` | Temperature for the rephrase model |
+| `VECTOR_SIZE` | `3584` | Output dimensions of `EMBEDDINGS_MODEL`; must match exactly |
+| `OPENAI_API_KEY` | — | Also used for content moderation (`MODERATION_ENABLED=1`), which calls the OpenAI Moderation API directly rather than through LiteLLM |
+| `OPENAI_MODERATION_KEY` | — | Dedicated key for moderation; falls back to `OPENAI_API_KEY` |
+| `MULTIMODAL_TEXT_ONLY_MODELS` | — | Comma-separated model IDs that cannot process images; Ragen will swap to `MULTIMODAL_FALLBACK_MODEL` when a request includes an image |
+| `MULTIMODAL_FALLBACK_MODEL` | — | Vision-capable model to use when the primary model is text-only |

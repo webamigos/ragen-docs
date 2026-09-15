@@ -1,0 +1,131 @@
+---
+title: 'Search API — Query Your Knowledge Base Directly'
+sidebarTitle: 'Search'
+description: 'POST /v1/search — Retrieve relevant document chunks from your knowledge base without generating an AI answer.'
+---
+
+The Search endpoint returns the RAG context block — the ranked document chunks and source file IDs that Ragen would feed to the language model — without invoking the language model at all. Use it when you want to build your own generation pipeline, plug retrieved passages into a different model, or inspect what Ragen is actually finding before troubleshooting answer quality.
+
+<Tip>
+  Run a search query before investigating a bad answer. If the right documents appear in `context`, the problem is in generation. If they don't, the problem is in your knowledge base — the document may not be uploaded, still processing, or not yet indexed.
+</Tip>
+
+## Endpoint
+
+```
+POST /v1/search
+```
+
+**Authentication:**
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request parameters
+
+<ParamField body="assistant_id" type="string" required>
+  The assistant (project) ID to search against. Use `GET /v1/assistants` to find available IDs, or check **Settings → Assistant settings** in the dashboard.
+</ParamField>
+
+<ParamField body="query" type="string" required>
+  The search query. Between 1 and 2,000 characters. Write it as a natural language question or phrase — the same way you'd phrase it to the chat endpoint.
+</ParamField>
+
+<ParamField body="max_results" type="integer">
+  Maximum number of document chunks to return. Between 1 and 20. Defaults to the organization's configured retrieval count.
+</ParamField>
+
+## Response
+
+```json
+{
+  "context": "**Refund Policy**\n\nCustomers may return items within 30 days of purchase...\n\n**Shipping FAQ**\n\nStandard shipping takes 3–5 business days...",
+  "file_ids": ["file-abc123", "file-def456"]
+}
+```
+
+<ResponseField name="context" type="string">
+  The LLM-ready, PII-redacted context block containing the most relevant document chunks concatenated together. This is exactly what Ragen's chat endpoints pass to the language model as retrieved context.
+</ResponseField>
+
+<ResponseField name="file_ids" type="string[]">
+  The IDs of the source files that contributed chunks to the context block. Use these with `GET /v1/files/{id}` to trace results back to specific documents.
+</ResponseField>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Build your own generation" icon="hammer">
+    Feed the `context` string into your own prompt template and language model call, giving you full control over how the answer is generated.
+  </Card>
+  <Card title="Inspect retrieval quality" icon="magnifying-glass">
+    Check which document chunks Ragen retrieves for a given query before investigating answer quality — isolates retrieval bugs from generation bugs.
+  </Card>
+  <Card title="Downstream processing" icon="arrow-right-arrow-left">
+    Extract relevant passages for summarization, translation, classification, or any other pipeline that needs grounded content without a chat-style response.
+  </Card>
+  <Card title="MCP integration" icon="plug">
+    The `ragen_search_knowledge_base` MCP tool calls this endpoint, letting external AI assistants ground themselves in your Ragen knowledge base without going through Ragen's chat model.
+  </Card>
+</CardGroup>
+
+## Examples
+
+<Tabs>
+  <Tab title="TypeScript SDK">
+    ```typescript
+    import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+    const ragen = new Ragen({ apiKey: process.env.RAGEN_API_KEY });
+
+    const result = await ragen.search({
+      assistant_id: 'YOUR_ASSISTANT_ID',
+      query: 'What is our refund policy?',
+      max_results: 5,
+    });
+
+    console.log('Context:', result.context);
+    console.log('Source files:', result.file_ids);
+
+    // Use the context in your own prompt
+    const myPrompt = `Answer the question using only the context below.\n\nContext:\n${result.context}\n\nQuestion: What is our refund policy?`;
+    ```
+  </Tab>
+  <Tab title="curl">
+    ```bash
+    curl -X POST $RAGEN_BASE_URL/v1/search \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "assistant_id": "YOUR_ASSISTANT_ID",
+        "query": "What is our refund policy?",
+        "max_results": 5
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Error codes
+
+| Status | Meaning |
+|---|---|
+| `400 Bad Request` | Missing required field, query too long, or `max_results` out of range |
+| `401 Unauthorized` | Missing or invalid API key |
+| `403 Forbidden` | API key is valid but has been deactivated |
+| `404 Not Found` | The specified assistant doesn't exist in your organization |
+| `429 Too Many Requests` | Rate limit exceeded — wait before retrying |
+
+**Example error body:**
+
+```json
+{
+  "message": "Assistant not found"
+}
+```
+
+## Rate limits
+
+| Scope | Limit |
+|---|---|
+| `POST /v1/search` | 20 requests / minute per IP |

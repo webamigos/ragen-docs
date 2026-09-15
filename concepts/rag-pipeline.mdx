@@ -1,0 +1,63 @@
+---
+title: 'How Ragen AI Retrieves and Generates Answers'
+sidebarTitle: 'RAG Pipeline'
+description: 'Learn the four-stage pipeline — rephrase, hybrid search, optional rerank, generate — that turns your documents into accurate, cited answers.'
+---
+
+When you ask Ragen AI a question, the answer does not come from a general-purpose language model making its best guess. Instead, a multi-stage retrieval pipeline finds the most relevant passages in your knowledge base and passes them to the model as grounded context. The result is an answer that cites your actual documents and cannot drift beyond what they contain.
+
+## How retrieval works
+
+<Steps>
+  <Step title="Rephrase and expand">
+    Before any search runs, Ragen AI rewrites your question into a self-contained standalone query — removing pronouns and references that only make sense in the context of the conversation so far. In the same step, the system generates one alternative phrasing of the question (multi-query expansion). Both queries run in parallel against your knowledge base.
+
+    Multi-query expansion is **on by default** at the organization level. Your administrator can turn it off per organization in the RAG settings page.
+  </Step>
+  <Step title="Hybrid retrieval">
+    Each query runs a **hybrid search** that combines two complementary signals:
+
+    - **Dense vectors** — semantic similarity using `bge-multilingual-gemma2` embeddings, which captures meaning even when the exact words differ
+    - **BM25 sparse search** — exact-term and morphological matching that catches part numbers, proper names, and technical jargon that dense search can miss
+
+    Results from both methods are merged using **Reciprocal Rank Fusion (RRF)** on the Qdrant server. Hybrid search is always on — there is no toggle.
+  </Step>
+  <Step title="Reranking (optional)">
+    When reranking is enabled, Ragen AI over-retrieves three times the final number of chunks, then passes them through a cross-encoder that scores each query/document pair directly. The top-scoring chunks move forward; the rest are discarded.
+
+    Reranking is **opt-in** and requires `FEATURE_FLAG_RERANKING=1` plus provider credentials in your deployment. If the reranker encounters an error, the pipeline automatically falls back to the raw hybrid results — quality may degrade slightly, but the answer is never blocked.
+  </Step>
+  <Step title="Answer generation with citations">
+    The surviving chunks become the context for the language model. The model generates an answer that is grounded in those chunks and cites the source documents by name. Only the sources the model explicitly names in its answer are recorded as citations — sources that were retrieved but not referenced are excluded from the citation list.
+  </Step>
+</Steps>
+
+## Model roles
+
+Ragen AI uses four distinct model roles across the pipeline. Each role has a default and can be configured independently in your deployment.
+
+| Role | When used | Default |
+|------|-----------|---------|
+| **Answering** | Every question — final answer generation | `gemini-3-flash-preview` |
+| **Rephrase + multi-query** | Before retrieval — rewrites and expands the question | `gemini-2.5-flash` |
+| **Document summary** | At ingest — summarizes each document for the summary chunk | `gemini-2.5-flash` |
+| **Embeddings** | Every document at ingest + every question at retrieval | `bge-multilingual-gemma2` |
+
+<Note>
+  If you switch to local or self-hosted models, configure all four roles together. The embedding model in particular **must stay consistent** between ingest and retrieval — if you change it after documents are already indexed, the existing vectors become incompatible with new queries and you will need to re-index your entire knowledge base.
+</Note>
+
+## Multilingual support
+
+The default embedding model, `bge-multilingual-gemma2`, supports cross-lingual retrieval. You can upload documents in one language and ask questions in another — the pipeline matches meaning across languages rather than requiring identical terminology. Internal benchmarks show 92% retrieval accuracy on multilingual query sets.
+
+<Accordion title="Pipeline configuration flags">
+  The following environment flags control which pipeline stages are active in your deployment:
+
+  | Flag | Default | Effect |
+  |------|---------|--------|
+  | `FEATURE_FLAG_RERANKING` | off | Set to `1` to enable cross-encoder reranking. Also requires provider credentials (`SCW_API_BASE` + `SCW_API_KEY` for Scaleway, or AWS credentials for Cohere). |
+  | `FEATURE_FLAG_DOC_SUMMARIES` | on | Set to `0` or `false` to disable per-document summary chunk generation at ingest. |
+
+  Multi-query expansion has no environment flag — it is controlled by the **per-organization RAG setting** (`multiQueryEnabled`) in the organization settings page.
+</Accordion>

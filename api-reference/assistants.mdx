@@ -1,0 +1,191 @@
+---
+title: 'Assistants API — Manage Ragen Projects via API'
+sidebarTitle: 'Assistants'
+description: 'CRUD endpoints for Ragen assistants (projects). OpenAI-compatible API for creating and managing knowledge base configurations.'
+---
+
+In Ragen, an **assistant** is a project — a named container with its own knowledge base, system instructions, and settings. The Assistants API is an OpenAI-compatible CRUD surface over your projects, which means you can use the `openai` Python or Node SDK with `base_url` pointed at your Ragen instance to create, list, update, and delete assistants without writing custom HTTP code.
+
+## Endpoints
+
+```
+POST   /v1/assistants
+GET    /v1/assistants
+GET    /v1/assistants/{id}
+POST   /v1/assistants/{id}   (OpenAI convention — modify)
+PATCH  /v1/assistants/{id}   (REST alias — same as POST /:id)
+DELETE /v1/assistants/{id}
+```
+
+**Authentication:**
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+Assistants are scoped to the **organization** the API key belongs to, not just the key's default project. `GET /v1/assistants` returns every assistant your organization owns.
+
+## OpenAI field mapping
+
+Ragen maps OpenAI assistant fields to Ragen project concepts:
+
+| OpenAI field | Ragen meaning | Notes |
+|---|---|---|
+| `id` | `asst-<projectId>` | Always prefixed with `asst-` |
+| `name` | Project title | |
+| `instructions` | Per-project system prompt | Merged on top of the org default |
+| `model` | — | Read-through from org default; per-project override not yet persisted |
+| `temperature` | — | Accepted and stored for SDK compatibility; same note as `model` |
+| `tools` | `[{"type": "file_search"}]` | RAG is always on — returned as a constant |
+| `description`, `metadata`, `tool_resources`, `top_p`, `response_format` | — | Accepted for SDK compatibility; returned as constants |
+
+## Create an assistant
+
+`POST /v1/assistants`
+
+<ParamField body="name" type="string" required>
+  The project title displayed in the dashboard.
+</ParamField>
+
+<ParamField body="instructions" type="string">
+  Per-project system prompt. Merged on top of the organization's default instructions. Pass an empty string to clear any existing instructions.
+</ParamField>
+
+<ParamField body="model" type="string">
+  Accepted for OpenAI SDK compatibility; not yet persisted as a per-project override.
+</ParamField>
+
+<ParamField body="temperature" type="number">
+  Accepted for OpenAI SDK compatibility; not yet persisted as a per-project override.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Accepted for OpenAI SDK compatibility; returned as-is.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Accepted for OpenAI SDK compatibility; returned as-is.
+</ParamField>
+
+## List, retrieve, and modify
+
+`GET /v1/assistants` returns every assistant in your organization. `GET /v1/assistants/{id}` retrieves a single assistant. Both `POST /v1/assistants/{id}` and `PATCH /v1/assistants/{id}` update an existing assistant — every field is optional, and they accept the same fields as create.
+
+## Delete an assistant
+
+`DELETE /v1/assistants/{id}` — deletes the project and returns:
+
+```json
+{ "id": "asst-abc123", "object": "assistant.deleted", "deleted": true }
+```
+
+**Self-delete protection:** You cannot delete the assistant bound to the API key's own default project. Attempting it returns a `400` error:
+
+```json
+{
+  "error": {
+    "message": "Cannot delete the assistant this API key is bound to. Rotate the key first, then retry.",
+    "type": "invalid_request_error"
+  }
+}
+```
+
+This prevents accidentally breaking your own chat and files context. Issue or rotate to a different key first if you need to delete the bound project.
+
+## Examples
+
+<Tabs>
+  <Tab title="TypeScript SDK">
+    ```typescript
+    import { Ragen } from '@webamigos/ragen-sdk-ts';
+
+    const ragen = new Ragen({ apiKey: process.env.RAGEN_API_KEY });
+
+    // Create
+    const assistant = await ragen.beta.assistants.create({
+      name: 'Support Bot',
+      instructions: 'Respond concisely. If unsure, say so.',
+    });
+    console.log(assistant.id); // asst-abc123...
+
+    // List
+    const assistants = await ragen.beta.assistants.list();
+    for (const a of assistants.data) {
+      console.log(a.id, a.name);
+    }
+
+    // Retrieve
+    const a = await ragen.beta.assistants.retrieve('asst-abc123');
+    console.log(a.instructions);
+
+    // Update
+    await ragen.beta.assistants.update('asst-abc123', {
+      name: 'Support Bot v2',
+    });
+    ```
+  </Tab>
+  <Tab title="Python (openai SDK)">
+    ```python
+    import os
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url=os.environ["RAGEN_BASE_URL"],
+        api_key=os.environ["RAGEN_API_KEY"],
+    )
+
+    # Create
+    a = client.beta.assistants.create(
+        name="Support Bot",
+        instructions="Respond concisely. If unsure, say so.",
+    )
+    print(a.id)
+
+    # List
+    for a in client.beta.assistants.list():
+        print(a.id, a.name)
+
+    # Retrieve
+    a = client.beta.assistants.retrieve("asst-abc123")
+
+    # Update
+    a = client.beta.assistants.update("asst-abc123", name="Support Bot v2")
+    ```
+  </Tab>
+  <Tab title="curl">
+    ```bash
+    # Create
+    curl -X POST $RAGEN_BASE_URL/v1/assistants \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Support Bot",
+        "instructions": "Respond concisely. If unsure, say so."
+      }'
+
+    # List
+    curl $RAGEN_BASE_URL/v1/assistants \
+      -H "Authorization: Bearer YOUR_API_KEY"
+
+    # Retrieve
+    curl $RAGEN_BASE_URL/v1/assistants/asst-abc123 \
+      -H "Authorization: Bearer YOUR_API_KEY"
+
+    # Update
+    curl -X PATCH $RAGEN_BASE_URL/v1/assistants/asst-abc123 \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "Support Bot v2"}'
+
+    # Delete
+    curl -X DELETE $RAGEN_BASE_URL/v1/assistants/asst-abc123 \
+      -H "Authorization: Bearer YOUR_API_KEY"
+    ```
+  </Tab>
+</Tabs>
+
+## Rate limits
+
+| Scope | Limit |
+|---|---|
+| All assistant endpoints | 20 requests / minute per IP |

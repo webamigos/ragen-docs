@@ -1,0 +1,205 @@
+---
+title: 'Files API — Upload and Manage Knowledge Base Documents'
+sidebarTitle: 'Files'
+description: 'POST, GET, DELETE /v1/files — Upload documents to a Ragen project, poll for processing status, and manage your knowledge base.'
+---
+
+The Files API is an OpenAI-compatible interface for adding documents to your Ragen knowledge base and managing them over time. Files are scoped to the **project** the API key is bound to — every file you upload through the API lands in that project's knowledge base and becomes immediately available to the [Chat Completions](/api-reference/chat-completions) endpoint once processing completes.
+
+## Endpoints
+
+```
+POST   /v1/files
+GET    /v1/files
+GET    /v1/files/{id}
+DELETE /v1/files/{id}
+```
+
+**Authentication:**
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Upload a file
+
+`POST /v1/files` — multipart form body.
+
+<ParamField body="file" type="file" required>
+  The document to upload. Supported formats: PDF, DOCX, PPTX, XLSX, CSV, TXT, MD, EPUB, SRT, and common image types.
+</ParamField>
+
+<ParamField body="purpose" type="string" default="knowledge_base">
+  Accepts `knowledge_base` (default) or `assistants` (OpenAI alias — treated identically). Use either value; both result in the file being added to your project's knowledge base.
+</ParamField>
+
+The response returns **immediately** with `status: "uploaded"`. The parse and embed pipeline runs asynchronously in the background.
+
+```json
+{
+  "id": "file-abc123",
+  "object": "file",
+  "bytes": 12345,
+  "created_at": 1744664400,
+  "filename": "handbook.pdf",
+  "purpose": "knowledge_base",
+  "status": "uploaded",
+  "status_details": null
+}
+```
+
+### Processing status
+
+Poll `GET /v1/files/{id}` until the file reaches a terminal status:
+
+| `status` | Meaning |
+|---|---|
+| `uploaded` | File is stored; the parse + embed pipeline hasn't finished yet |
+| `processed` | Parse and embed both completed — the file is available to chat |
+| `error` | Parsing or embedding failed — check `status_details` for more information |
+
+<Warning>
+  Do not query the knowledge base for content from a file while its status is still `uploaded`. The file won't appear in retrieval results until it reaches `processed`.
+</Warning>
+
+## List files
+
+`GET /v1/files` — returns a paginated list of files in your project.
+
+<ParamField query="limit" type="integer" default="20">
+  Number of files to return per page. Between 1 and 100.
+</ParamField>
+
+<ParamField query="after" type="string">
+  Cursor for pagination — the file ID to start after (returns files created after the given ID).
+</ParamField>
+
+<ParamField query="purpose" type="string">
+  Filter results by purpose (`knowledge_base` or `assistants`).
+</ParamField>
+
+Returns `{ "object": "list", "data": [...] }` with OpenAI `file` objects.
+
+## Retrieve a file
+
+`GET /v1/files/{id}` — returns the full OpenAI `file` object for a single file, or `404` if it doesn't exist in your project.
+
+## Delete a file
+
+`DELETE /v1/files/{id}` — removes the file completely: the database row, the storage object, any thumbnail, its `UserDocument` record, and all embeddings from the vector store. External cleanup (storage and vector store) is best-effort — a transient blip won't block the database delete.
+
+```json
+{ "id": "file-abc123", "object": "file", "deleted": true }
+```
+
+## Examples
+
+<Tabs>
+  <Tab title="TypeScript SDK">
+    ```typescript
+    import { Ragen } from '@webamigos/ragen-sdk-ts';
+    import { createReadStream } from 'fs';
+
+    const ragen = new Ragen({ apiKey: process.env.RAGEN_API_KEY });
+
+    // Upload a file
+    const file = await ragen.files.create({
+      file: createReadStream('handbook.pdf'),
+      purpose: 'knowledge_base',
+    });
+    console.log(file.id, file.status); // file-abc123 uploaded
+
+    // Poll until processed
+    async function waitUntilProcessed(fileId: string) {
+      while (true) {
+        const f = await ragen.files.retrieve(fileId);
+        if (f.status === 'processed') return f;
+        if (f.status === 'error') throw new Error(`Processing failed: ${f.status_details}`);
+        await new Promise((r) => setTimeout(r, 2000)); // wait 2 s between polls
+      }
+    }
+
+    const processed = await waitUntilProcessed(file.id);
+    console.log('Ready:', processed.filename);
+
+    // Upload and wait in one call
+    async function uploadAndWait(filePath: string) {
+      const uploaded = await ragen.files.create({
+        file: createReadStream(filePath),
+        purpose: 'knowledge_base',
+      });
+      return waitUntilProcessed(uploaded.id);
+    }
+    ```
+  </Tab>
+  <Tab title="Python (openai SDK)">
+    ```python
+    import os
+    import time
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url=os.environ["RAGEN_BASE_URL"],
+        api_key=os.environ["RAGEN_API_KEY"],
+    )
+
+    # Upload
+    with open("handbook.pdf", "rb") as f:
+        file = client.files.create(file=f, purpose="assistants")
+    print(file.id, file.status)
+
+    # Poll until processed
+    while file.status == "uploaded":
+        time.sleep(2)
+        file = client.files.retrieve(file.id)
+
+    if file.status == "error":
+        raise RuntimeError(f"Processing failed: {file.status_details}")
+
+    print("Ready:", file.filename)
+
+    # List all files
+    for f in client.files.list():
+        print(f.id, f.filename, f.status)
+    ```
+  </Tab>
+  <Tab title="curl">
+    ```bash
+    # Upload
+    curl -X POST $RAGEN_BASE_URL/v1/files \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -F "file=@handbook.pdf" \
+      -F "purpose=knowledge_base"
+
+    # Poll status
+    curl $RAGEN_BASE_URL/v1/files/file-abc123 \
+      -H "Authorization: Bearer YOUR_API_KEY"
+
+    # List files
+    curl "$RAGEN_BASE_URL/v1/files?limit=20" \
+      -H "Authorization: Bearer YOUR_API_KEY"
+
+    # Delete
+    curl -X DELETE $RAGEN_BASE_URL/v1/files/file-abc123 \
+      -H "Authorization: Bearer YOUR_API_KEY"
+    ```
+  </Tab>
+</Tabs>
+
+## Error codes
+
+| Status | `type` | Cause |
+|---|---|---|
+| `400` | `invalid_request_error` | Missing `file` field, unsupported `purpose`, or validation failure |
+| `401` | `authentication_error` | Missing or invalid API key |
+| `404` | `not_found_error` | File doesn't exist or isn't in the caller's project |
+| `413` | `invalid_request_error` | File exceeds the per-file, organization, or project storage limit |
+| `429` | `rate_limit_error` | Upload rate limit exceeded |
+| `502` | `api_error` | Storage or background worker failure during upload |
+
+## Rate limits
+
+| Endpoint | Limit |
+|---|---|
+| `POST /v1/files` | 10 requests / minute (expensive tier) |
+| `GET /v1/files`, retrieve, delete | 20 requests / minute (default tier) |

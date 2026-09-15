@@ -1,0 +1,241 @@
+---
+title: 'Frequently Asked Questions About Ragen AI Setup and Use'
+sidebarTitle: 'FAQ'
+description: 'Answers to common questions about setting up Ragen AI, choosing AI models, keeping your data private, and building API integrations.'
+---
+
+This page answers the questions that come up most often when getting started with Ragen, configuring models, thinking through data privacy, and building integrations. If you don't find your answer here, check the relevant guide or open an issue on GitHub.
+
+## Setup & Installation
+
+<AccordionGroup>
+  <Accordion title="How do I get started?">
+    Run `create-ragen-app` to scaffold a full local installation in one command:
+
+    ```bash
+    npx create-ragen-app my-ragen-app
+    ```
+
+    The wizard clones the repository, generates secrets, asks for a model provider key, starts the backing services in Docker, and runs the first-time database setup. From there, follow the [Quickstart](/quickstart) to start the apps and create your first account.
+  </Accordion>
+
+  <Accordion title="What are the minimum hardware requirements?">
+    To run the full Ragen stack you need:
+
+    - **~8 GB of RAM** — document parsing (Docling) is the hungry part
+    - **Docker** and Docker Compose
+    - **Node.js 24.x** if you run the apps outside containers
+
+    A GPU is only required if you plan to serve language models locally. Everything else runs on CPU.
+  </Accordion>
+
+  <Accordion title="Can I run Ragen without internet access?">
+    Yes. Ragen's architecture supports fully air-gapped operation, but it requires deliberate configuration — it is not a single flag.
+
+    To run without internet access:
+
+    1. Set all four model variables (`DEFAULT_MODEL`, `REPHRASE_MODEL`, `SUMMARY_MODEL`, `EMBEDDINGS_MODEL`) to models served on your own hardware via vLLM or Ollama.
+    2. Set `DOCLING_STRICT=1` to prevent document parsing from falling back to an external model if Docling fails.
+    3. Point `SMTP_HOST` at an internal mail server, or set `MAIL_PROVIDER=console` to skip email entirely.
+    4. After the initial install, serve container images from an internal registry to eliminate outbound traffic for updates.
+
+    See [Open Models on Your Own Hardware](/configuration/open-models) for the full walkthrough, including which model calls still reach outward by default.
+
+    <Warning>
+      Setting only `DEFAULT_MODEL` to a local model is a common mistake. The `REPHRASE_MODEL` also defaults to a cloud model and runs on every question. Set all four variables to achieve true isolation.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="How do I update Ragen?">
+    Pull the latest code and replay the migrations:
+
+    ```bash
+    git pull
+    npx prisma migrate deploy
+    ```
+
+    Then restart your services. If you are running the apps via Docker, rebuild the images before restarting. Check the [GitHub releases](https://github.com/webamigos/RagenAI/releases) page for any migration notes before upgrading.
+  </Accordion>
+</AccordionGroup>
+
+## Models & AI
+
+<AccordionGroup>
+  <Accordion title="Which AI providers does Ragen support?">
+    Ragen routes every model call through a [LiteLLM](https://docs.litellm.ai/) proxy that you run alongside the stack. LiteLLM supports a wide range of providers, including:
+
+    - **OpenAI** (GPT-4o, GPT-4.1, o3, etc.)
+    - **Anthropic** (Claude 3.5, Claude 3.7, etc.)
+    - **Azure OpenAI**
+    - **Amazon Bedrock**
+    - **Google Vertex AI**
+    - **Local models** via vLLM or Ollama
+
+    Any provider LiteLLM supports works with Ragen. Configure your provider in `infra/litellm/config.yaml`.
+  </Accordion>
+
+  <Accordion title="Can I use different models for different tasks?">
+    Yes. Ragen uses four separate model roles, each configured independently:
+
+    | Variable | Purpose | Default |
+    |---|---|---|
+    | `DEFAULT_MODEL` | Answering questions | `gemini-3-flash-preview` |
+    | `REPHRASE_MODEL` | Query rephrasing and multi-query expansion | `gemini-2.5-flash` |
+    | `SUMMARY_MODEL` | Document summary generation at ingest | `gemini-2.5-flash` |
+    | `EMBEDDINGS_MODEL` | Vectorising documents and queries | `bge-multilingual-gemma2` |
+
+    Set each variable to any model name that your LiteLLM proxy serves. For example, you might use a fast, cheap model for rephrasing and a more capable one for answering.
+  </Accordion>
+
+  <Accordion title="Can I change the embedding model after setup?">
+    You can change it, but doing so requires a full re-index of all existing documents.
+
+    <Warning>
+      A Qdrant collection is created with a fixed vector size at first ingest. Changing `EMBEDDINGS_MODEL` makes every existing vector incompatible with the new model. You must also update `VECTOR_SIZE` to match the new model's output dimensionality, then re-index your entire document corpus.
+
+      Decide on your embedding model before you ingest anything you would mind re-processing.
+    </Warning>
+
+    Common values for `VECTOR_SIZE`:
+    - `bge-multilingual-gemma2` (default) → `3584`
+    - `cohere-embed-multilingual-v3`, `bge-m3`, `multilingual-e5-large` → `1024`
+
+    Always verify your specific model's dimensionality rather than assuming.
+  </Accordion>
+
+  <Accordion title="What languages does Ragen support?">
+    Ragen's default embedding model (`bge-multilingual-gemma2`) is multilingual. Retrieval uses a hybrid approach — dense vector search for semantic meaning combined with BM25 sparse vectors for exact terms — which performs well across languages and on technical content like part numbers or proper names.
+
+    The internal benchmark score for multilingual retrieval is 92%. Results for your specific documents and language will vary, so test on your own material before committing to a model.
+
+    <Tip>
+      If your documents are not in English, weigh multilingual ability heavily when evaluating local models. A model strong in English but mediocre in your target language will appear to have a retrieval problem when it is actually a generation problem.
+    </Tip>
+  </Accordion>
+</AccordionGroup>
+
+## Security & Privacy
+
+<AccordionGroup>
+  <Accordion title="Does Ragen send my documents to the vendor?">
+    No. Ragen is entirely self-hosted — there is no hosted offering, and no component reports back to the vendor. Your documents, your Postgres database, your Qdrant index, and your conversation history all live on infrastructure you control.
+
+    The application contains no analytics, tag manager, or usage telemetry. An architecture test fails the build if any of those are added.
+  </Accordion>
+
+  <Accordion title="What data leaves my network?">
+    It depends on how you configure the model layer:
+
+    | Configuration | What Leaves Your Network |
+    |---|---|
+    | LiteLLM pointed at a locally-served model | Nothing, in normal operation |
+    | LiteLLM pointed at a commercial API (OpenAI, Anthropic, etc.) | The prompt: the question plus the retrieved document chunks needed to answer it |
+
+    Two caveats apply regardless:
+
+    - **Document parsing can fall back externally.** `DOCUMENT_PARSER=docling` parses on your hardware, but if Docling fails the worker falls back to a loader that sends PDFs to an external model. Set `DOCLING_STRICT=1` to fail ingest instead.
+    - **Content moderation goes directly outward.** If `MODERATION_ENABLED` is on, it calls OpenAI's moderation endpoint directly — it does not go through LiteLLM. Leave moderation off on an isolated install.
+
+    See [Security and Privacy](/security) for the full breakdown.
+  </Accordion>
+
+  <Accordion title="Is conversation data encrypted?">
+    Encryption at rest is available but **opt-in**. Without a key provider configured, Ragen starts normally and stores message content unencrypted. That keeps local development simple, but a production install must configure a provider.
+
+    Ragen supports AES-256-GCM encryption using envelope encryption: each conversation thread gets its own key, itself encrypted by a master key in your chosen key provider. Set `ENCRYPTION_PROVIDER` to one of:
+
+    - `scaleway` — Scaleway Key Manager
+    - `kms` — AWS KMS
+    - `local` — a master key in the environment
+
+    After configuring a provider, verify it worked by checking that `encryptedDek` is populated for new threads in the database.
+
+    <Warning>
+      Thread titles remain in plaintext so title search works. Content search over encrypted threads is therefore title-only — this is a deliberate trade-off.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Is SSO supported?">
+    Not yet. Authentication today is email and password with per-organization membership, plus magic links for passwordless sign-in. Opaque API keys are available for programmatic access.
+
+    Microsoft Entra ID sign-in over OAuth is on the [roadmap](/roadmap) and comes first. SAML and SCIM provisioning follow after that. MFA and passkeys are also planned for a later milestone.
+  </Accordion>
+</AccordionGroup>
+
+## API & Integration
+
+<AccordionGroup>
+  <Accordion title="Is the Ragen API compatible with OpenAI?">
+    Yes. Ragen implements the OpenAI wire format for the endpoints most integrations rely on:
+
+    - `POST /v1/chat/completions` — chat completions with streaming support
+    - `POST /v1/files`, `GET /v1/files`, `DELETE /v1/files/:id` — file management
+    - `POST/GET/PATCH/DELETE /v1/assistants` — assistant (project) management
+    - `POST/GET/PATCH/DELETE /v1/threads` and messages — conversation thread management
+
+    You can point any OpenAI-compatible SDK at your Ragen instance by setting `base_url` to your deployment's API address. Ragen adds one extension field, `assistant_id`, to specify which project to query.
+
+    <Note>
+      Some OpenAI parameters are accepted but have no effect on the RAG pipeline yet (such as `top_p` and `seed`). A few are rejected with a 400 because silently dropping them would produce unexpected results — `response_format` and `tools`/`tool_choice` fall into this category.
+    </Note>
+  </Accordion>
+
+  <Accordion title="How do I get an API key?">
+    Create an API key from within your Ragen instance:
+
+    <Steps>
+      <Step title="Open Settings">
+        Log in to your Ragen instance and navigate to **Settings → API Keys**.
+      </Step>
+      <Step title="Create a key">
+        Click **Create API Key**, give it a name, and select the project (assistant) this key should access.
+      </Step>
+      <Step title="Copy it immediately">
+        The full key is only shown once at creation time. Copy it and store it securely — only a masked version is kept in the database.
+      </Step>
+    </Steps>
+
+    Optionally enable **Debug mode** on the key to save every API conversation as a thread in the project view, which is useful when building and testing integrations.
+  </Accordion>
+
+  <Accordion title="Is there a rate limit on the API?">
+    Yes. Rate limits apply per IP address:
+
+    | Endpoint | Limit |
+    |---|---|
+    | `POST /v1/chat/completions` | 10 requests per minute |
+    | Other API endpoints | 20 requests per minute |
+
+    Chat completions run the full RAG pipeline (vector search + optional reranking + LLM call), so they carry a stricter limit. When a limit is hit, the response is `429 rate_limit_error`. The official TypeScript SDK retries 429 responses automatically with exponential backoff and jitter.
+  </Accordion>
+
+  <Accordion title="Can I use the Python OpenAI SDK with Ragen?">
+    Yes. Point the `base_url` at your Ragen instance and pass `assistant_id` as an extra body parameter:
+
+    ```python title="example.py"
+    import os
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url=os.environ["RAGEN_BASE_URL"],  # e.g. http://localhost:3001/v1
+        api_key=os.environ["RAGEN_API_KEY"],
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-5.4",
+        messages=[
+            {"role": "user", "content": "What is our refund policy?"}
+        ],
+        extra_body={"assistant_id": "YOUR_ASSISTANT_ID"},
+    )
+
+    print(response.choices[0].message.content)
+    ```
+
+    The `extra_body` field passes Ragen's `assistant_id` extension through the OpenAI SDK without triggering a validation error. Streaming works the same way — set `stream=True` and iterate the response as you normally would.
+
+    <Tip>
+      A native Python client for Ragen is on the [roadmap](/roadmap). Once available, it will provide typed responses and helpers like `wait_until_processed()` that the OpenAI SDK cannot offer.
+    </Tip>
+  </Accordion>
+</AccordionGroup>
