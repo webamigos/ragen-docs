@@ -54,7 +54,7 @@ Chosen with `ENCRYPTION_PROVIDER`. Unset auto-detects from whichever credentials
 
 #### `ENCRYPTION_PROVIDER=scaleway`
 
-Scaleway Key Manager (ADR-02).
+Scaleway Key Manager ([ADR-02](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/02-per-org-kms-keys.md)).
 
 | Variable                 | Config field |              |
 | ------------------------ | ------------ | ------------ |
@@ -174,7 +174,7 @@ Postgres. `directUrl` bypasses a connection pooler for migrations; without it th
 
 ### Model gateway
 
-`LLM_GATEWAY` decides how model calls are made: `litellm` (the default) sends them to a proxy you run, `native` has Ragen call providers itself through `@ragenai/llm-gateway` (ADR-49). Under `native` the route table names the upstream per model and credentials come per provider — the route table is `infra/llm-gateway/routes.yaml`, or `LLM_ROUTES_PATH` if you name your own. `LITELLM_PROXY_URL` is still required under both values for now, so that the two paths can be compared on one machine; under the proxy path an unset URL is not a degraded mode, it is no LLM at all.
+`LLM_GATEWAY` decides how model calls are made: `litellm` (the default) sends them to a proxy you run, `native` has Ragen call providers itself through `@ragenai/llm-gateway` ([ADR-49](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/49-the-application-calls-model-providers-itself.md)). Under `native` the route table names the upstream per model and credentials come per provider — the route table is `infra/llm-gateway/routes.yaml`, or `LLM_ROUTES_PATH` if you name your own. `LITELLM_PROXY_URL` is still required under both values for now, so that the two paths can be compared on one machine; under the proxy path an unset URL is not a degraded mode, it is no LLM at all.
 
 | Variable             | Config field |              |
 | -------------------- | ------------ | ------------ |
@@ -185,7 +185,7 @@ Postgres. `directUrl` bypasses a connection pooler for migrations; without it th
 
 ### Vector store
 
-Qdrant, the only supported vector store (ADR-31). The URL falls back to http://localhost:6333 in code, which is why it is optional here and required outright in a deployed apps/worker — a silent fallback there once wrote every vector into a container-local Qdrant and reported success.
+Qdrant, the only supported vector store ([ADR-31](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/31-only-qdrant-is-a-supported-vector-store.md)). The URL falls back to http://localhost:6333 in code, which is why it is optional here and required outright in a deployed apps/worker — a silent fallback there once wrote every vector into a container-local Qdrant and reported success.
 
 | Variable         | Config field |          |
 | ---------------- | ------------ | -------- |
@@ -208,7 +208,7 @@ Defaults for each job. All optional: each has a fallback in code, and apps/worke
 
 ### Temporal
 
-Document ingest runs as Temporal workflows (ADR-26). Optional here because apps/web and apps/api fall back to localhost:7233, and required outright in apps/worker, which is the process that runs them. `TEMPORAL_CERT` and `TEMPORAL_KEY` are deliberately absent: they are declared in the schema but nothing reads them yet.
+Document ingest runs as Temporal workflows ([ADR-26](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/26-absorb-ragen-worker-into-monorepo.md)). Optional here because apps/web and apps/api fall back to localhost:7233, and required outright in apps/worker, which is the process that runs them. `TEMPORAL_CERT` and `TEMPORAL_KEY` are deliberately absent: they are declared in the schema but nothing reads them yet.
 
 | Variable                  | Config field |          |
 | ------------------------- | ------------ | -------- |
@@ -225,7 +225,7 @@ Required by apps/worker, which caches organization settings through it. Genuinel
 
 ### Observability
 
-OpenTelemetry (ADR-22). A no-op in apps/web without an endpoint; apps/worker also traces on a Langfuse key alone.
+OpenTelemetry ([ADR-22](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/22-observability-opentelemetry.md)). A no-op in apps/web without an endpoint; apps/worker also traces on a Langfuse key alone.
 
 | Variable                      | Config field  |          |
 | ----------------------------- | ------------- | -------- |
@@ -234,7 +234,7 @@ OpenTelemetry (ADR-22). A no-op in apps/web without an endpoint; apps/worker als
 
 ### Token vault
 
-Connector OAuth tokens and API keys (ADR-32). Each URL and its secret are all-or-nothing: a URL without its secret produces 401s rather than a legible error.
+Connector OAuth tokens and API keys ([ADR-32](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/32-token-vault-and-mcp-stay-separate.md)). Each URL and its secret are all-or-nothing: a URL without its secret produces 401s rather than a legible error.
 
 | Variable                           | Config field      |          |
 | ---------------------------------- | ----------------- | -------- |
