@@ -1,0 +1,41 @@
+name: Docs
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A second push to the same branch makes the first run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Pinned, not `@latest`. A floating CLI turns somebody else's release
+      # into a red build on a commit that changed nothing here — and the
+      # failure arrives with no diff to explain it. Bump it deliberately.
+      #
+      # `validate` is strict: it exits on warnings as well as errors, and
+      # covers the build the way `docusaurus build` used to before the site
+      # moved out of the application repository.
+      - name: Validate the documentation build
+        run: npx -y mint@4.2.893 validate
+
+      # Named separately from `validate` so a broken link is legible as a
+      # broken link in the checks list, rather than as "the build failed".
+      # This is the check that left the application repository with the site:
+      # `npm run docs:build` used to fail there on a broken internal link.
+      - name: Check for broken links
+        run: npx -y mint@4.2.893 broken-links
