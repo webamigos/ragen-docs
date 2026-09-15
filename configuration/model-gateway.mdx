@@ -1,24 +1,17 @@
 ---
-title: 'Model Gateway — Direct Provider Calls or a Proxy of Your Choosing'
+title: 'Model Gateway — How Ragen Reaches Model Providers'
 sidebarTitle: 'Model gateway'
-description: 'Choose how Ragen reaches model providers: call them directly with LLM_GATEWAY=native, attach Portkey, vLLM or Ollama per model, or put a LiteLLM proxy in front of everything.'
+description: 'Ragen calls model providers directly through a route table. Attach Portkey, vLLM, Ollama or any OpenAI-compatible endpoint per model.'
 ---
 
-Ragen has to turn "answer this question with `gpt-5.4`" into an HTTP call to somebody's API. There are two ways it can do that, and you choose which.
-
-| `LLM_GATEWAY` | What happens |
-|---|---|
-| `native` *(default)* | Ragen calls providers itself, with no proxy in the path |
-| `litellm` | Every call goes to a [LiteLLM](https://github.com/BerriAI/litellm) proxy you also run |
-
-Switching is that one variable plus a redeploy. There is no migration and no state on either side, so switching back is the same move in reverse.
+Ragen has to turn "answer this question with `gpt-5.4`" into an HTTP call to somebody's API. It makes that call itself, from the application processes, using a **route table** that names which upstream serves each model id.
 
 <Note>
-  **There is no `LLM_GATEWAY=portkey`.** Portkey, vLLM, Ollama and anything else speaking OpenAI's API are attached *under* `native`, per model, as a route with `provider: openai-compatible` — see [Attaching a different gateway](#attaching-a-different-gateway). `litellm` is the one proxy with a flag value of its own, because it is the path Ragen is migrating away from and the rollback while that lasts.
+  **There is no gateway mode to choose.** Ragen used to route every call through a LiteLLM proxy, selected by an `LLM_GATEWAY` variable. That path and that variable are gone — Portkey, vLLM, Ollama, LiteLLM and anything else speaking OpenAI's API are attached *per model*, as a route with `provider: openai-compatible`. See [Attaching an external gateway](#attaching-an-external-gateway).
 </Note>
 
 <Warning>
-  Because `native` is the default, a deployment that sets nothing calls providers directly — which means the provider credentials must be present in the **web, api and worker** processes, not only in a proxy container. If you are upgrading a deployment that relied on the proxy, either supply those credentials to all three or set `LLM_GATEWAY=litellm` explicitly. Check before deploying, with a real call per model:
+  Because Ragen calls providers itself, the provider credentials must be present in the **web, api and worker** processes — not only in one container. If you are upgrading a deployment that relied on the proxy, supply them to all three. Check before deploying, with a real call per model:
 
   ```bash
   npm run gateway:preflight -- --probe
@@ -26,12 +19,12 @@ Switching is that one variable plus a redeploy. There is no migration and no sta
 </Warning>
 
 <Tip>
-  Use `native` if you want one fewer service to run. Use a gateway if you want what a gateway is actually for — spend dashboards, provider fallback, caching, retries across vendors. Ragen does not build those, deliberately.
+  You do not need a gateway to run Ragen. You want one if you want what a gateway is actually for — spend dashboards, provider fallback, caching, retries across vendors. Ragen does not build those, deliberately.
 </Tip>
 
 ## Calling providers directly
 
-This is what you get by default; `LLM_GATEWAY=native` names it explicitly. Ragen reads a **route table** naming which upstream serves each model id, and takes credentials from the environment.
+Ragen reads a **route table** naming which upstream serves each model id, and takes credentials from the environment.
 
 ```yaml infra/llm-gateway/routes.yaml
 version: 1
@@ -56,14 +49,16 @@ A route carries no credentials and no display name. Credentials come from the en
 | `provider` | Environment |
 |---|---|
 | `azure` | `AZURE_API_KEY`, `AZURE_API_BASE`, optionally `AZURE_API_VERSION` |
-| `vertex` | `VERTEX_PROJECT`, `VERTEX_LOCATION`, and `GOOGLE_APPLICATION_CREDENTIALS` pointing at a **file** |
+| `vertex` | `VERTEX_PROJECT`, `VERTEX_LOCATION`, and optionally `VERTEX_CREDENTIALS` |
 | `bedrock` | `AWS_BEDROCK_REGION` — credentials come from the AWS default chain, so an instance role or SSO works |
 | `openai` | `OPENAI_API_KEY`, optionally `OPENAI_BASE_URL` |
 | `openai-compatible` | See [Attaching a different gateway](#attaching-a-different-gateway) |
 
-<Warning>
-  **Vertex takes a file path, not the JSON.** `VERTEX_CREDENTIALS` holds the service-account JSON itself, which is what the proxy wants. Google's own libraries want a **file path** in `GOOGLE_APPLICATION_CREDENTIALS`. Setting the first and expecting the second is the most common way a `native` cutover fails — and it fails at the first model call, not at boot.
-</Warning>
+<Note>
+  **Vertex may need no credential variable at all.** `VERTEX_CREDENTIALS` accepts either the service-account JSON itself or a path to it — both work. Leave it unset on a workload that has its own identity (Cloud Run, GKE Workload Identity, GCE) and Google's application default credentials apply, with no key to rotate or leak. This is the one provider where "no credentials configured" is routinely correct.
+
+  A route's own `location` beats `VERTEX_LOCATION`, which matters because some models are served from the `global` endpoint only and 404 in a region.
+</Note>
 
 ## Attaching an external gateway
 
@@ -97,7 +92,6 @@ routes:
 ```
 
 ```bash .env.local
-LLM_GATEWAY=native
 LLM_PORTKEY_BASE_URL=http://localhost:8787/v1
 LLM_PORTKEY_API_KEY=<the upstream provider key Portkey should forward>
 LLM_PORTKEY_HEADERS={"x-portkey-provider":"openai"}
@@ -133,7 +127,7 @@ One real call per configured model. A gateway that is reachable but misrouted an
 
 ### Anything else OpenAI-compatible
 
-[vLLM](https://docs.vllm.ai), [Ollama](https://ollama.com), Text Generation Inference, a hosted API, or LiteLLM itself — which is why turning the proxy off is not a one-way door. The pattern is identical; only the connection name changes.
+[vLLM](https://docs.vllm.ai), [Ollama](https://ollama.com), Text Generation Inference, a hosted API, or LiteLLM itself — a proxy Ragen no longer has a mode for is still a perfectly good `openai-compatible` upstream. The pattern is identical; only the connection name changes.
 
 ```yaml
 routes:
@@ -157,33 +151,25 @@ That is the whole integration. A new upstream is a route and two variables — n
 
 `connection` is a property of the route, so different models can come from different places at once: a local vLLM for the cheap ones, a hosted API for the hard ones, a gateway in front of a third. Ragen does not care that they differ.
 
-## Before you switch
+## Before you rely on it
 
-The flip does **not** fail at boot. It fails at the first model call, as a 5xx, because that is the first moment anything checks whether a credential works.
+Misconfiguration does **not** fail at boot. It fails at the first model call, as a 5xx, because that is the first moment anything checks whether a credential works.
 
-<Steps>
-  <Step title="Run the preflight">
-    ```bash
-    npm run gateway:preflight -- --probe
-    ```
+```bash
+npm run gateway:preflight -- --probe
+```
 
-    `--probe` makes one real call per configured model. It exists because "configured" and "works" turned out to be different questions — a provider can have every variable set and still fail to authenticate.
-  </Step>
+`--probe` makes one real call per configured model. It exists because "configured" and "works" turned out to be different questions — a provider can have every variable set and still fail to authenticate, and a role-based deployment (Bedrock's default credential chain, Vertex's application default credentials) has no variable to inspect in the first place.
 
-  <Step title="Confirm the running app agrees">
-    ```bash
-    curl https://your-ragen/api/healthcheck
-    # {"status":"ok","llmGateway":"native"}
-    ```
+## If a provider stops working
 
-    The app answers this from inside its own process, so it reports what actually served your requests rather than what you believe you configured.
-  </Step>
-</Steps>
+There is no mode to switch back to, so the fix is per model rather than global: point the affected route at something else and leave every other route alone. Which shape the replacement takes depends on what you are pointing at, and the two are not interchangeable:
 
-<Warning>
-  **A missing `llmGateway` field is not a default.** If that key is absent, the running build predates the code that reads `LLM_GATEWAY` — so the variable is set and nothing reads it. Read an absent field as "the flag is doing nothing", never as `litellm`.
-</Warning>
+| Replacement | Route |
+|---|---|
+| Another provider family, or the same one in another region — Bedrock instead of Azure, Vertex in another location | Its **native** provider (`bedrock`, `vertex`, `azure`, `openai`, `anthropic`), with that family's own credentials in the environment. A `location` on the route overrides the deployment-wide one |
+| An upstream that speaks OpenAI's API — a gateway you run, vLLM, Ollama, a hosted aggregator | `provider: openai-compatible` with a `connection` name, whose base URL and key are two environment variables derived from that name |
 
-## Rolling back
+Only the second is "two variables and done"; the first needs whatever credentials that provider family requires, which is why [Credentials per provider](#credentials-per-provider) is the table to check before assuming a swap is free.
 
-Set `LLM_GATEWAY=litellm` and redeploy. No migration, no state, nothing to undo. Keeping the proxy running for a week after a switch costs one container and buys a rollback that takes one variable.
+Either way it is the same mechanism as [attaching a gateway](#attaching-an-external-gateway), which is why there is no separate rollback procedure: routing is configuration, and it always was.

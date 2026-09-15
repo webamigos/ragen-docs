@@ -11,7 +11,7 @@ Ragen AI is self-hosted, so getting started means getting an instance running on
 Before you begin, make sure you have the following in place:
 
 - **Node.js 24.x** — the installer checks your version before it clones anything. Running on an older version produces a tree that fails later, far from the actual cause.
-- **Docker and Docker Compose** — both must be running. The backing services (Postgres, Qdrant, LiteLLM, Temporal, Docling, Redis) all run in containers.
+- **Docker and Docker Compose** — both must be running. The backing services (Postgres, Qdrant, Temporal, Docling, Redis) all run in containers.
 - **~8 GB of RAM** available to Docker. Document parsing is the hungry part; you can drop Docling later if you need to trim memory.
 - **An LLM API key** — OpenAI or Anthropic to start chatting immediately. You can also point Ragen at models on your own hardware, but that is separate deployment work.
 
@@ -117,18 +117,23 @@ No GPU is required unless you choose to serve models locally.
 
 ## Verify your installation
 
-Once everything is running, use these curl commands to confirm each service is healthy:
+Once everything is running, confirm each service is healthy:
 
 ```bash
 # API server — should return {"status":"ok"}
 curl http://localhost:3001/v1/healthcheck
 
-# LiteLLM — lists the models it can actually reach
-curl http://localhost:4000/v1/models
-
 # Qdrant — confirms the vector store is up
 curl http://localhost:6333/collections
+
+# Every model in the route table, with one real call each
+npm run gateway:preflight -- --probe
 ```
+
+The last one is the check the other two cannot stand in for. Ragen calls model
+providers itself, so "the services are up" says nothing about whether a
+credential works — and a provider that is configured but unauthenticated fails
+at the first question a user asks, not at boot.
 
 <Note>
   If document ingestion appears to hang, check the worker log first. The upload endpoint returns `200` as soon as the file is stored — parsing is asynchronous, and a parsing failure is only visible in the worker log and in the document's status field in the UI.
