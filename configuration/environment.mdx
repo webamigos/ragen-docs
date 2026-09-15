@@ -88,7 +88,7 @@ One variable selects an implementation for each provider, and that choice determ
 
     <Tabs>
       <Tab title="scaleway (default)">
-        Scaleway's `/v1/rerank` endpoint, called directly (bypasses LiteLLM). Reuses `SCW_API_KEY`.
+        Scaleway's `/v1/rerank` endpoint. Reuses `SCW_API_KEY`.
 
         ```bash
         RERANK_PROVIDER=scaleway
@@ -98,17 +98,18 @@ One variable selects an implementation for each provider, and that choice determ
         ```
       </Tab>
       <Tab title="cohere">
-        Cohere Rerank v3.5 through the LiteLLM proxy (routed to AWS Bedrock). Requires valid AWS credentials, the `bedrock:Rerank` IAM permission, and the `cohere-rerank-v3-5` model entry enabled in your LiteLLM configuration.
+        Cohere Rerank v3.5, over any endpoint speaking Cohere's `/rerank` shape — Bedrock, Cohere's own API, or anything else that serves it.
 
         ```bash
         RERANK_PROVIDER=cohere
-        # AWS credentials must already be set for Bedrock
+        RERANK_COHERE_BASE_URL=https://your-endpoint
+        RERANK_COHERE_API_KEY=your-key
         RERANK_MODEL=cohere-rerank-v3-5
         ```
 
-        <Note>
-          `cohere-rerank-v3-5` ships disabled by default in the LiteLLM configuration. Enable it and supply AWS credentials before using this provider.
-        </Note>
+        <Warning>
+          `RERANK_COHERE_BASE_URL` has **no default**. Selecting this variant without it reranks nothing, and does so quietly: an unreachable reranker degrades to "no reranking" rather than erroring. Set it deliberately and confirm reranking is actually happening.
+        </Warning>
       </Tab>
     </Tabs>
   </Tab>
@@ -150,7 +151,7 @@ One variable selects an implementation for each provider, and that choice determ
 
 ## Core Settings
 
-Database, vector store, Redis, Temporal and the LiteLLM proxy URL are listed
+Database, vector store, Redis and Temporal are listed
 with their config fields and requiredness in the
 [configuration reference](/configuration/environment-reference), which is
 generated from the schemas the applications validate against at boot. They are
@@ -158,13 +159,15 @@ not repeated here, because a second copy is a copy that goes wrong: the last
 hand-written reference called `S3_ENDPOINT_URL` required when it is optional,
 omitted `S3_SESSION_TOKEN`, and described an encryption failure backwards.
 
-Two that decide how model calls are made are worth naming here, and are covered
+One that decides how model calls are made is worth naming here, and is covered
 properly in [Model gateway](/configuration/model-gateway):
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `LLM_GATEWAY` | Optional | `litellm` | `litellm` sends model calls to a proxy you run; `native` has Ragen call providers itself |
-| `LLM_ROUTES_PATH` | Optional | — | Route table to use instead of the shipped one, under `native` |
+| `LLM_ROUTES_PATH` | Optional | — | Route table to use instead of the shipped one |
+
+There is no variable selecting a gateway mode any more: Ragen calls providers
+itself, and an external gateway is a route rather than a setting.
 
 ## Auth Settings
 

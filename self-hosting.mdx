@@ -26,13 +26,13 @@ A GPU is only needed if you plan to serve language models on your own hardware. 
     npm run ragen:up:full
     ```
 
-    This starts Postgres, Qdrant, Temporal, LiteLLM, Docling, and Redis in Docker. The applications themselves run on the host with hot reload.
+    This starts Postgres, Qdrant, Temporal, Docling, and Redis in Docker. The applications themselves run on the host with hot reload.
 
     <Note>
       If you only want to query existing knowledge bases and do not need document ingestion, use the lighter stack instead — it omits Temporal, so there is nothing for the worker to connect to:
 
       ```bash
-      npm run ragen:up:app    # Postgres, Qdrant, and LiteLLM only
+      npm run ragen:up:app    # Postgres and Qdrant only
       ```
 
       To run every application in containers as well, `npm run ragen:up:everything` builds and starts the web app, API, worker, and admin panel alongside all services.
@@ -116,7 +116,6 @@ Every service has a specific role in the stack. Removing one affects only the ca
 |---------|------------|
 | Postgres | Everything — the primary application database |
 | Qdrant | Vector search and document retrieval |
-| LiteLLM | Every model call: chat, embeddings, and reranking — unless `LLM_GATEWAY=native`, which needs no proxy ([Model gateway](/configuration/model-gateway)) |
 | Temporal | Asynchronous document ingestion workflows |
 | Docling | Local document parsing and OCR |
 | Redis | Required by the worker; gracefully degraded for the web app |
@@ -170,20 +169,19 @@ DATABASE_URL="postgresql://postgres:<GENERATED_DB_PASSWORD>@localhost:55432/rage
 
 REDIS_URL=redis://localhost:56379
 QDRANT_URL=http://localhost:6333
-LLM_GATEWAY=litellm
-LITELLM_PROXY_URL=http://localhost:4000
-LITELLM_MASTER_KEY=<GENERATED_LITELLM_MASTER_KEY>
 
-DEFAULT_MODEL_PROVIDER=litellm
-DEFAULT_MODEL=gemini-3-flash-preview
-EMBEDDINGS_MODEL=bge-multilingual-gemma2
+OPENAI_API_KEY=<your provider key>
+DEFAULT_MODEL=gpt-4o-mini
+EMBEDDINGS_MODEL=text-embedding-3-small
 
 BETTER_AUTH_SECRET=<random-secret>
 SESSION_AUTH_SECRET=<random-secret>
 ```
 
 <Note>
-  `LLM_GATEWAY=litellm` is here on purpose. Ragen calls providers directly by default, using a [route table](/configuration/model-gateway) that names Azure, Bedrock, Vertex and Scaleway — providers a new installation has no credentials for. This block starts a LiteLLM proxy instead, so it names that path explicitly rather than inheriting the default. Drop the line once you have provider credentials of your own.
+  **The model lines above are a sketch, and the route table is the part they leave out.** Ragen calls providers itself through a [route table](/configuration/model-gateway) that maps each model id to an upstream, and the table shipped in the repository names Azure, Bedrock, Vertex and Scaleway — providers a new installation has no credentials for. A key alone therefore is not enough: the routes have to name the provider that key belongs to.
+
+  The least error-prone way to get all of it consistent — key, model ids, embeddings model and its vector size, and a matching route table — is to scaffold the install with `npx create-ragen-app`, which asks which provider you have and writes the table for it. To wire it by hand instead, write your own file and point `LLM_ROUTES_PATH` at it.
 </Note>
 
 <Warning>
