@@ -108,5 +108,10 @@
         ]
       }
     ]
+  },
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-DXM4XVJZYY"
+    }
   }
 }
