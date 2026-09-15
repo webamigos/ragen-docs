@@ -65,26 +65,90 @@ A route carries no credentials and no display name. Credentials come from the en
   **Vertex takes a file path, not the JSON.** `VERTEX_CREDENTIALS` holds the service-account JSON itself, which is what the proxy wants. Google's own libraries want a **file path** in `GOOGLE_APPLICATION_CREDENTIALS`. Setting the first and expecting the second is the most common way a `native` cutover fails — and it fails at the first model call, not at boot.
 </Warning>
 
-## Attaching a different gateway
+## Attaching an external gateway
 
-Anything speaking OpenAI's `/v1/chat/completions` and `/v1/embeddings` can serve some or all of your models: [Portkey](https://github.com/portkey-ai/gateway), [vLLM](https://docs.vllm.ai), [Ollama](https://ollama.com), Text Generation Inference — and LiteLLM itself, which is why turning the proxy off is not a one-way door.
+Ragen deliberately does not build spend dashboards, provider fallback, cross-vendor retries or response caching. Those are what a gateway is for, and anything speaking OpenAI's `/v1/chat/completions` and `/v1/embeddings` can serve some or all of your models.
 
-Give the route `provider: openai-compatible` and a `connection` name:
+<Tip>
+  **Portkey is the gateway we recommend.** It is open source, Node and TypeScript like Ragen itself, runs as a single container you can host, and routes on request headers — which is exactly what per-model routing needs. Nothing below is Portkey-specific plumbing in Ragen: it is the same `openai-compatible` seam every other upstream uses, which is why recommending one costs you nothing if you later prefer another.
+</Tip>
+
+### Portkey
+
+Run it yourself — one container, no account:
+
+```bash
+docker run -d --name portkey -p 8787:8787 portkeyai/gateway
+```
+
+Point a route at it, and name the connection:
+
+```yaml infra/llm-gateway/routes.yaml
+version: 1
+routes:
+  gpt-4o-mini:
+    provider: openai-compatible
+    connection: portkey
+    model: gpt-4o-mini
+  text-embedding-3-small:
+    provider: openai-compatible
+    connection: portkey
+    model: text-embedding-3-small
+```
+
+```bash .env.local
+LLM_GATEWAY=native
+LLM_PORTKEY_BASE_URL=http://localhost:8787/v1
+LLM_PORTKEY_API_KEY=<the upstream provider key Portkey should forward>
+LLM_PORTKEY_HEADERS={"x-portkey-provider":"openai"}
+```
+
+`LLM_PORTKEY_API_KEY` is the **upstream** key — your OpenAI or Anthropic key — because the self-hosted gateway forwards it rather than holding credentials of its own. `x-portkey-provider` tells Portkey which upstream that key belongs to.
+
+Chat and embeddings both route this way; there is nothing extra to configure for the embedding side.
+
+#### Using Portkey's hosted service
+
+With a saved Portkey config — which is where its fallbacks, retries and caching are defined — name the config instead of the provider:
+
+```bash .env.local
+LLM_PORTKEY_BASE_URL=https://api.portkey.ai/v1
+LLM_PORTKEY_API_KEY=<your Portkey API key>
+LLM_PORTKEY_HEADERS={"x-portkey-config":"pc-ragen-xxxx"}
+```
+
+Here the API key is Portkey's own, and the provider credentials live in the Portkey config rather than in Ragen.
+
+<Note>
+  Header names are Portkey's, not Ragen's. Check their documentation for the version you run — `LLM_PORTKEY_HEADERS` passes through whatever JSON object you give it, so a header change on their side needs no change here.
+</Note>
+
+#### Check it before you rely on it
+
+```bash
+npm run gateway:preflight -- --probe
+```
+
+One real call per configured model. A gateway that is reachable but misrouted answers this and nothing else until a user asks a question.
+
+### Anything else OpenAI-compatible
+
+[vLLM](https://docs.vllm.ai), [Ollama](https://ollama.com), Text Generation Inference, a hosted API, or LiteLLM itself — which is why turning the proxy off is not a one-way door. The pattern is identical; only the connection name changes.
 
 ```yaml
 routes:
   my-model:
     provider: openai-compatible
-    connection: portkey
-    model: gpt-4o
+    connection: ollama
+    model: llama3.1
 ```
 
 The connection name becomes the environment variables, upper-cased:
 
 ```bash
-LLM_PORTKEY_BASE_URL=https://your-gateway.example.com/v1
-LLM_PORTKEY_API_KEY=sk-...
-LLM_PORTKEY_HEADERS={"x-portkey-provider":"openai"}   # optional
+LLM_OLLAMA_BASE_URL=http://localhost:11434/v1
+LLM_OLLAMA_API_KEY=unused
+LLM_OLLAMA_HEADERS={"x-example":"1"}   # optional
 ```
 
 That is the whole integration. A new upstream is a route and two variables — no code change.

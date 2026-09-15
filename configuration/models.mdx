@@ -79,20 +79,25 @@ Every major provider is reachable. Which file you name the model in depends on h
     Claude, Cohere, and Titan models via Bedrock.
 
     ```bash
+    AWS_BEDROCK_REGION=eu-central-1
+    # Credentials come from the AWS default chain — static keys, an instance
+    # role, or SSO. Static keys look like this:
     AWS_ACCESS_KEY_ID=...
     AWS_SECRET_ACCESS_KEY=...
-    AWS_DEFAULT_REGION=eu-central-1
     ```
+
+    IAM permissions: [`aws-iam-policy.json`](https://github.com/webamigos/RagenAI/blob/main/docs/aws-iam-policy.json).
   </Card>
   <Card title="Azure OpenAI" icon="circle">
     GPT models deployed to your Azure subscription.
 
     ```bash
-    AZURE_OPENAI_KEY=...
-    AZURE_OPENAI_INSTANCE=your-instance-name
-    AZURE_OPENAI_DEPLOYMENT=your-deployment
-    AZURE_OPENAI_VERSION=2024-12-01-preview
+    AZURE_API_KEY=...
+    AZURE_API_BASE=https://your-instance.openai.azure.com
+    AZURE_API_VERSION=2024-12-01-preview
     ```
+
+    The deployment name is the route's `model`, not an environment variable.
   </Card>
   <Card title="Scaleway" icon="circle">
     Mistral, BGE embeddings, and other Scaleway Generative APIs.
@@ -102,14 +107,26 @@ Every major provider is reachable. Which file you name the model in depends on h
     SCW_API_KEY=...
     ```
   </Card>
-  <Card title="OpenRouter" icon="circle">
-    Access hundreds of models through a single API key.
+  <Card title="Portkey (recommended gateway)" icon="circle">
+    Spend dashboards, provider fallback, caching and retries in front of any upstream. Self-host it as one container, or use the hosted service.
 
     ```bash
-    OPENROUTER_API_KEY=sk-or-...
-    # Optional: EU-only routing
-    OPENROUTER_BASE_URL=https://eu.openrouter.ai/api/v1
+    LLM_PORTKEY_BASE_URL=http://localhost:8787/v1
+    LLM_PORTKEY_API_KEY=<upstream provider key>
+    LLM_PORTKEY_HEADERS={"x-portkey-provider":"openai"}
     ```
+
+    See [Model gateway](/configuration/model-gateway#portkey).
+  </Card>
+  <Card title="OpenRouter" icon="circle">
+    Hundreds of models behind one key. OpenRouter speaks OpenAI's API, so it attaches as a **connection**, not as a provider of its own:
+
+    ```bash
+    LLM_OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+    LLM_OPENROUTER_API_KEY=sk-or-...
+    ```
+
+    Give the route `provider: openai-compatible` and `connection: openrouter`. A bare `OPENROUTER_API_KEY` is read by nothing.
   </Card>
   <Card title="vLLM (local)" icon="circle">
     Self-hosted models via the vLLM OpenAI-compatible server.
