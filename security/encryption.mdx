@@ -26,6 +26,26 @@ If you leave `ENCRYPTION_PROVIDER` unset, Ragen auto-detects a provider by check
   The `local` provider is for development only. Do not use `ENCRYPTION_MASTER_KEY` as your sole encryption backend in production — it stores the master key on the same machine as the data it protects.
 </Warning>
 
+## Ragen checks the key at startup
+
+Setting the variables is not the same as being able to use the key. Credentials without permission on that specific key, a key id belonging to a different project, or a region that does not hold the key all look like a correct configuration and fail on the first message.
+
+So at startup Ragen generates one throwaway data key and unwraps it again, then discards both. Two calls, not one: encrypting and decrypting are separate permissions on both Scaleway Key Manager and an AWS key policy, and a principal that may wrap but not unwrap writes messages nobody can ever read back.
+
+| Outcome | What Ragen does |
+|---|---|
+| The key works | Starts normally. Nothing is logged. |
+| The key is refused | Refuses to serve. `apps/api` exits with the reason; `apps/web` serves the encryption screen in place of the application. |
+| The provider is unreachable | Logs a warning and starts. A timeout, a `5xx`, throttling, or a socket that never opened are treated as temporary — a blocking screen that outlives one bad second at startup would be worse. |
+
+"Refused" means a permanent answer: any `4xx` other than `408` or `429`, an AWS refusal, a malformed response, or a data key that comes back as different bytes than were wrapped.
+
+<Warning>
+  `ALLOW_UNENCRYPTED=1` does **not** override a refused key. That variable waives the *requirement* to configure encryption; it does not make a broken key work. Because a key provider is still configured, message writes keep calling it and keep failing — so Ragen reports the refusal rather than promising a plaintext fallback that does not exist. Remove the provider's variables if you genuinely intend to run without encryption.
+</Warning>
+
+When a deployment is refused, check the three things that produce an identical permission error: whether **these** credentials may use **this** key id in **this** region. Any of the three can be wrong on its own, and the error text is the same in each case.
+
 ## How envelope encryption works
 
 <Steps>
@@ -62,7 +82,7 @@ Enabling encryption changes the behaviour of two features:
 
 ## Consciously opting out
 
-If you have evaluated the trade-offs and need to run a deployed environment without encryption — for example, during a migration — set `ALLOW_UNENCRYPTED=1`. This is a conscious, logged opt-out:
+If you have evaluated the trade-offs and need to run a deployed environment without encryption — for example, during a migration — set `ALLOW_UNENCRYPTED=1` and configure no key provider. This is a conscious, logged opt-out:
 
 ```bash
 ALLOW_UNENCRYPTED=1
@@ -84,6 +104,10 @@ LIMIT 5;
 ```
 
 Rows where `encrypted_dek` is populated are encrypted. If `encrypted_dek` is null on new threads, the key provider configuration has not reached the process — recheck your environment variables and restart.
+
+<Note>
+  A key that is configured but refused does not reach this check: the startup probe stops the deployment first. Reaching a running application with null `encrypted_dek` on new threads therefore points at variables that never arrived, not at a key the provider rejected.
+</Note>
 
 ## Encrypting existing threads
 
