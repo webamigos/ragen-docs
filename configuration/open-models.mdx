@@ -4,24 +4,26 @@ sidebarTitle: 'Local Models'
 description: 'Point all four model roles at a local vLLM or Ollama server so no document content, query text, or embeddings ever leave your network.'
 ---
 
-When you point every model role at a local endpoint, nothing your users type and none of your document content leaves your network. Nearly every model call Ragen makes goes through the LiteLLM proxy you run — swap that proxy's targets to local servers and the work that touches your data happens entirely on machines you control. "Fully offline" is a configuration you arrive at intentionally, not something you inherit: you must set all four model roles, disable outbound reranking, set `DOCLING_STRICT=1`, and check the [what still reaches outward](#what-still-reaches-outward) table below.
+When you point every model role at a local endpoint, nothing your users type and none of your document content leaves your network. "Fully offline" is a configuration you arrive at intentionally, not something you inherit: you must set all four model roles, disable outbound reranking, set `DOCLING_STRICT=1`, and check the [what still reaches outward](#what-still-reaches-outward) table below.
 
 ## How the Routing Works
 
-All application services send model requests to a single LiteLLM proxy. Changing which model servers that proxy points to requires only an edit to the LiteLLM configuration file (`litellm/config.yaml`) and the matching environment variables — no application code changes.
+Each application process calls model providers itself, using a **route table** that names the upstream for every model id. Pointing Ragen at a local server is therefore a route plus two environment variables — no proxy in the middle, and no application code change.
 
 ```
 Web app   ─┐
-API       ├─→  LiteLLM proxy  ─→  vLLM / Ollama on your GPU box
+API       ├─→  vLLM / Ollama on your GPU box
 Worker   ─┘         ↑
-               litellm/config.yaml
+          infra/llm-gateway/routes.yaml
 ```
+
+The route table is read by all three processes, so the credentials and base URLs have to be present in all three — not in one container.
 
 The embedding model is the one exception worth planning around: it determines the shape of the Qdrant index. Changing `EMBEDDINGS_MODEL` requires updating `VECTOR_SIZE` to match the new model's output dimensions and re-indexing every document you have already ingested.
 
 ## Pick a Server
 
-Both vLLM and Ollama expose an OpenAI-compatible API, which is all LiteLLM needs to route requests to them.
+Both vLLM and Ollama expose an OpenAI-compatible API, which is all a route needs: `provider: openai-compatible` plus a connection name.
 
 <Tabs>
   <Tab title="vLLM">
@@ -69,7 +71,7 @@ Leaving `REPHRASE_MODEL` unset is the most common miss. It sends the user's ques
 
 ## Wiring vLLM
 
-Start the vLLM server with a served model name that matches what you will put in LiteLLM's config:
+Start the vLLM server with a served model name that matches what you will put in the route table:
 
 ```bash
 vllm serve Qwen/Qwen3-8B \
@@ -77,15 +79,22 @@ vllm serve Qwen/Qwen3-8B \
   --host 0.0.0.0 --port 8000
 ```
 
-Register the model in your LiteLLM configuration file. The `hosted_vllm/` prefix is LiteLLM's route for a self-hosted OpenAI-compatible vLLM server:
+Add a route for it, and name the connection:
 
-```yaml title="litellm/config.yaml"
-model_list:
-  - model_name: local-chat
-    litellm_params:
-      model: hosted_vllm/local-chat
-      api_base: http://vllm:8000/v1
-      api_key: none   # vLLM accepts any value unless started with --api-key
+```yaml title="infra/llm-gateway/routes.yaml"
+version: 1
+routes:
+  local-chat:
+    provider: openai-compatible
+    connection: vllm
+    model: local-chat
+```
+
+The connection name becomes the environment variables, upper-cased:
+
+```bash
+LLM_VLLM_BASE_URL=http://vllm:8000/v1
+LLM_VLLM_API_KEY=unused   # vLLM accepts any value unless started with --api-key
 ```
 
 To run vLLM as a container alongside the rest of the stack, add it to `docker-compose.override.yml` on the same network:
@@ -105,13 +114,12 @@ services:
               capabilities: [gpu]
 ```
 
-If vLLM runs on a separate GPU host, replace `http://vllm:8000` with that host's address — LiteLLM only needs network access to it.
+If vLLM runs on a separate GPU host, replace `http://vllm:8000` with that host's address — the app processes only need network access to it.
 
-After editing the config, restart the proxy and confirm it sees the model:
+After editing the route table, confirm the model answers a real call:
 
 ```bash
-docker compose restart litellm
-curl http://localhost:4000/v1/models
+npm run gateway:preflight -- --probe
 ```
 
 ## Wiring Ollama
@@ -122,14 +130,19 @@ Pull the model you want to use:
 ollama pull qwen3:8b
 ```
 
-Register it in your LiteLLM configuration file. Use `ollama_chat/` rather than `ollama/` — the chat endpoint produces better results:
+Add a route for it. Ollama's OpenAI-compatible API lives under `/v1`, and the model name is Ollama's own tag:
 
-```yaml title="litellm/config.yaml"
-model_list:
-  - model_name: local-chat
-    litellm_params:
-      model: ollama_chat/qwen3:8b
-      api_base: http://ollama:11434
+```yaml title="infra/llm-gateway/routes.yaml"
+routes:
+  local-chat:
+    provider: openai-compatible
+    connection: ollama
+    model: qwen3:8b
+```
+
+```bash
+LLM_OLLAMA_BASE_URL=http://ollama:11434/v1
+LLM_OLLAMA_API_KEY=unused
 ```
 
 <Note>
@@ -139,7 +152,6 @@ model_list:
 Point the four model role variables at your local model name:
 
 ```bash
-DEFAULT_MODEL_PROVIDER=litellm
 DEFAULT_MODEL=local-chat
 REPHRASE_MODEL=local-chat
 SUMMARY_MODEL=local-chat
@@ -152,23 +164,28 @@ SUMMARY_MODEL=local-chat
   Set `VECTOR_SIZE` to match your embedding model's output dimensions **before you upload the first document**. Qdrant creates the collection with a fixed vector size, and there is no way to change it afterwards short of deleting the collection and re-indexing everything. A mismatch between `VECTOR_SIZE` and the model's actual output causes Qdrant to reject every upsert — and the failure looks like a broken ingest, not a configuration mistake.
 </Warning>
 
-Both vLLM and Ollama expose a `/v1/embeddings` endpoint. Register an embedding model separately from the chat model so you can hide it from the chat picker:
+Both vLLM and Ollama expose a `/v1/embeddings` endpoint. Give the embedding model its own route — a separate model id, usually served by a separate process, because an embedding server and a chat server rarely want the same GPU:
 
-```yaml title="litellm/config.yaml"
-model_list:
-  - model_name: local-embed
-    litellm_params:
-      model: openai/local-embed       # vLLM path
-      api_base: http://vllm-embed:8000/v1
-      api_key: none
+```yaml title="infra/llm-gateway/routes.yaml"
+routes:
+  local-embed:
+    provider: openai-compatible
+    connection: vllm-embed
+    model: local-embed
 
-  # For Ollama, use:
-  # - model_name: local-embed
-  #   litellm_params:
-  #     model: openai/bge-m3
-  #     api_base: http://ollama:11434/v1
-  #     api_key: none
+  # For Ollama, point the connection at Ollama instead:
+  # local-embed:
+  #   provider: openai-compatible
+  #   connection: ollama
+  #   model: bge-m3
 ```
+
+```bash
+LLM_VLLM_EMBED_BASE_URL=http://vllm-embed:8000/v1
+LLM_VLLM_EMBED_API_KEY=unused
+```
+
+A connection name becomes environment variables by upper-casing it and replacing anything that is not a letter or digit with `_`, so `vllm-embed` reads `LLM_VLLM_EMBED_BASE_URL`.
 
 Set the matching environment variables. `VECTOR_SIZE` must equal the model's output dimensionality — not an assumption, the actual number from the model card:
 
@@ -194,13 +211,13 @@ Setting local model targets closes most outbound traffic, but several other path
 
 | Path | Default Status | What to Do |
 |---|---|---|
-| Content moderation | Off (`MODERATION_ENABLED` unset) | Leave it off. When enabled, it calls the OpenAI Moderation API **directly** — it is the one model call that does not go through LiteLLM and cannot be redirected. |
+| Content moderation | Off (`MODERATION_ENABLED` unset) | Leave it off. When enabled, it calls the OpenAI Moderation API **directly** — it is the one model call that does not go through the route table and cannot be redirected. |
 | Legacy PDF parsing | Silent fallback | Set `DOCLING_STRICT=1`. Docling parses documents locally by default, but a Docling failure falls back to a loader that sends the PDF to an external model. |
-| Reranking | Off (`FEATURE_FLAG_RERANKING` unset) | Leave it off, or use `RERANK_PROVIDER=scaleway` pointed at your own vLLM rerank server. `RERANK_PROVIDER=cohere` routes through AWS Bedrock by definition. |
+| Reranking | Off (`FEATURE_FLAG_RERANKING` unset) | Leave it off, or keep it local: vLLM's `/v1/rerank` speaks Cohere's shape, so `RERANK_PROVIDER=cohere` with `RERANK_COHERE_BASE_URL` pointed at your own server stays inside the network. `RERANK_COHERE_BASE_URL` has no default — unset means no reranking, silently. |
 | MCP connectors | Opt-in per organisation | Slack, HubSpot, Google, and similar connectors are outbound by design. Leave them unconfigured or accept the traffic knowingly. |
-| Speech (TTS/STT) | Off unless configured | `SPEECH_PROVIDER=elevenlabs` leaves the network. The OpenAI speech path routes through LiteLLM when `LITELLM_PROXY_URL` is set, so it can be served locally. |
+| Speech (TTS/STT) | Off unless configured | `SPEECH_PROVIDER=elevenlabs` leaves the network. The OpenAI-compatible path takes `SPEECH_BASE_URL`, so it can point at a local speech server instead. |
 | Mail | Optional | Point `SMTP_HOST` at an internal mail server, or set `MAIL_PROVIDER=console` to write messages to the log instead. |
-| LiteLLM → Langfuse tracing | Off unless `LANGFUSE_*` vars are set | Leave those variables unset, or point them at a self-hosted Langfuse instance. |
+| Langfuse tracing | Off unless `LANGFUSE_*` vars are set | Leave those variables unset, or point them at a self-hosted Langfuse instance. |
 | Container images | Install-time only | Pull images once, then mirror them to an internal registry and cut outbound container traffic. |
 
 ## Things That Break Differently on Local Models
@@ -235,8 +252,8 @@ Switching to a local model can change behaviour in ways that are not obvious err
 After completing the configuration, run these checks to confirm every path is local:
 
 ```bash
-# The proxy serves your local model IDs
-curl http://localhost:4000/v1/models
+# Every routed model answers a real call, from the app's own process
+npm run gateway:preflight -- --probe
 
 # The model server is up
 curl http://localhost:8000/v1/models

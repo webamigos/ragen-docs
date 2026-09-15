@@ -4,9 +4,9 @@ sidebarTitle: 'Models'
 description: 'Set which model answers, rephrases, summarises and embeds — and reach any provider directly or through a gateway you run.'
 ---
 
-Ragen calls language models in four roles — answering questions, rephrasing queries, summarising documents, and generating embeddings. This page is about **which model** fills each role. [Model gateway](/configuration/model-gateway) is about **how Ragen reaches it**: directly, or through a proxy you run.
+Ragen calls language models in four roles — answering questions, rephrasing queries, summarising documents, and generating embeddings. This page is about **which model** fills each role. [Model gateway](/configuration/model-gateway) is about **how Ragen reaches it**: a route table naming the upstream for each model id.
 
-The variables below name the models. They mean the same thing either way.
+Two things have to agree, and this is the mistake worth avoiding before you make it: the variables below name a **model id**, and that id has to exist in the route table. A name with no route is a name nothing can serve.
 
 ## Model Roles
 
@@ -28,7 +28,6 @@ Ragen calls language models in four distinct roles. Each role has its own enviro
 A complete set of model roles:
 
 ```bash
-DEFAULT_MODEL_PROVIDER=litellm
 DEFAULT_MODEL=gemini-3-flash-preview
 
 REPHRASE_MODEL=gemini-2.5-flash
@@ -42,7 +41,7 @@ EMBEDDINGS_MODEL=bge-multilingual-gemma2
 
 ## Supported Providers
 
-Every major provider is reachable. Which file you name the model in depends on how you reach it — a route table under `LLM_GATEWAY=native`, or your proxy's own config — but the API key variables are the same either way.
+Every major provider is reachable. The model is named in the [route table](/configuration/model-gateway); the credentials come from the environment, per provider family.
 
 <CardGroup cols={2}>
   <Card title="OpenAI" icon="circle">
@@ -66,13 +65,6 @@ Every major provider is reachable. Which file you name the model in depends on h
     VERTEX_PROJECT=your-gcp-project-id
     VERTEX_LOCATION=europe-west1
     VERTEX_CREDENTIALS={"type":"service_account",...}
-    ```
-  </Card>
-  <Card title="Google AI Studio" icon="circle">
-    Gemini models via a direct API key.
-
-    ```bash
-    GOOGLE_API_KEY=AIza...
     ```
   </Card>
   <Card title="AWS Bedrock" icon="circle">
@@ -134,49 +126,51 @@ Every major provider is reachable. Which file you name the model in depends on h
     See the [Local Models](/configuration/open-models) page for full setup instructions.
   </Card>
   <Card title="Ollama (local)" icon="circle">
-    Local models running in Ollama on your own hardware.
+    Local models running in Ollama on your own hardware. OpenAI-compatible, so it attaches as a **connection**:
 
     ```bash
-    OLLAMA_HOST=http://localhost:11434
+    LLM_OLLAMA_BASE_URL=http://localhost:11434/v1
+    LLM_OLLAMA_API_KEY=unused
     ```
 
     See the [Local Models](/configuration/open-models) page for full setup instructions.
   </Card>
 </CardGroup>
 
-## Registering Models in LiteLLM
+## Registering a Model
 
-Each model you want to use must appear in your LiteLLM configuration file (`litellm/config.yaml`). The `model_name` field is the identifier you set in `DEFAULT_MODEL`, `REPHRASE_MODEL`, etc.
+A model id you set in `DEFAULT_MODEL`, `REPHRASE_MODEL` or `EMBEDDINGS_MODEL` has to appear in the route table, which says which upstream serves it and under what name *there*. The shipped table is `infra/llm-gateway/routes.yaml`; point `LLM_ROUTES_PATH` at your own file to serve a different set.
 
-```yaml title="litellm/config.yaml"
-model_list:
-  - model_name: gemini-3-flash-preview
-    litellm_params:
-      model: vertex_ai/gemini-3-flash-preview
-      vertex_project: your-gcp-project-id
-      vertex_location: europe-west1
+```yaml title="infra/llm-gateway/routes.yaml"
+version: 1
+routes:
+  gemini-3-flash-preview:
+    provider: vertex
+    model: gemini-3-flash-preview
+    location: global
 
-  - model_name: gemini-2.5-flash
-    litellm_params:
-      model: vertex_ai/gemini-2.5-flash
-      vertex_project: your-gcp-project-id
-      vertex_location: europe-west1
+  gemini-2.5-flash:
+    provider: vertex
+    model: gemini-2.5-flash
 
-  - model_name: bge-multilingual-gemma2
-    litellm_params:
-      model: openai/bge-multilingual-gemma2
-      api_base: https://api.scaleway.ai/YOUR_PROJECT_ID/v1
-      api_key: os.environ/SCW_API_KEY
+  bge-multilingual-gemma2:
+    provider: openai-compatible
+    connection: scaleway
+    model: bge-multilingual-gemma2
 ```
 
+The left-hand key is Ragen's name for the model — the one you put in an environment variable. `model` is the **upstream's** name for it, which is often different: Bedrock prefixes the region and the vendor (`eu.anthropic.claude-sonnet-5`), and an Azure deployment name is whatever you called it.
+
+A route carries no credentials and no display name. Credentials come from the environment; display names and capability flags live in the model catalogue.
+
 <Tip>
-  Verify that the proxy sees your registered models by running:
+  **The chat model picker shows what your credentials can actually serve.** It is the route table intersected with the credentials present in the app processes — so a route pointing at a provider you have no key for does not appear, rather than appearing and failing on the first click. A model you set in an environment variable but never routed will not appear either.
+
+  Check the whole set before you rely on it, with one real call per model:
 
   ```bash
-  curl http://localhost:4000/v1/models
+  npm run gateway:preflight -- --probe
   ```
-
-  A model LiteLLM serves appears in the Ragen chat model picker automatically — the UI reads this endpoint at runtime. Models you have not registered in `config.yaml` will not appear, even if you set their name in an environment variable.
 </Tip>
 
 ## Additional Model Settings
@@ -185,7 +179,7 @@ model_list:
 |---|---|---|
 | `REPHRASE_TEMPERATURE` | `0.5` | Temperature for the rephrase model |
 | `VECTOR_SIZE` | `3584` | Output dimensions of `EMBEDDINGS_MODEL`; must match exactly |
-| `OPENAI_API_KEY` | — | Also used for content moderation (`MODERATION_ENABLED=1`), which calls the OpenAI Moderation API directly rather than through LiteLLM |
+| `OPENAI_API_KEY` | — | Also used for content moderation (`MODERATION_ENABLED=1`), which calls the OpenAI Moderation API directly rather than through the route table |
 | `OPENAI_MODERATION_KEY` | — | Dedicated key for moderation; falls back to `OPENAI_API_KEY` |
 | `MULTIMODAL_TEXT_ONLY_MODELS` | — | Comma-separated model IDs that cannot process images; Ragen will swap to `MULTIMODAL_FALLBACK_MODEL` when a request includes an image |
 | `MULTIMODAL_FALLBACK_MODEL` | — | Vision-capable model to use when the primary model is text-only |
