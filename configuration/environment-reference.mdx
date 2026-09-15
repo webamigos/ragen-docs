@@ -174,11 +174,13 @@ Postgres. `directUrl` bypasses a connection pooler for migrations; without it th
 
 ### Model gateway
 
-Every model call goes through LiteLLM (ADR-04), so an unset URL is not a degraded mode — it is no LLM at all. The key is optional locally and required on a deployment.
+`LLM_GATEWAY` decides how model calls are made: `litellm` (the default) sends them to a proxy you run, `native` has Ragen call providers itself through `@ragenai/llm-gateway` (ADR-49). Under `native` the route table names the upstream per model and credentials come per provider — the route table is `infra/llm-gateway/routes.yaml`, or `LLM_ROUTES_PATH` if you name your own. `LITELLM_PROXY_URL` is still required under both values for now, so that the two paths can be compared on one machine; under the proxy path an unset URL is not a degraded mode, it is no LLM at all.
 
 | Variable             | Config field |              |
 | -------------------- | ------------ | ------------ |
 | `LITELLM_PROXY_URL`  | `url`        | **required** |
+| `LLM_GATEWAY`        | `gateway`    | optional     |
+| `LLM_ROUTES_PATH`    | `routesPath` | optional     |
 | `LITELLM_MASTER_KEY` | `masterKey`  | optional     |
 
 ### Vector store
