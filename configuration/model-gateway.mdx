@@ -8,10 +8,18 @@ Ragen has to turn "answer this question with `gpt-5.4`" into an HTTP call to som
 
 | `LLM_GATEWAY` | What happens |
 |---|---|
-| `litellm` *(default)* | Every call goes to a [LiteLLM](https://github.com/BerriAI/litellm) proxy you also run |
-| `native` | Ragen calls providers itself, with no proxy in the path |
+| `native` *(default)* | Ragen calls providers itself, with no proxy in the path |
+| `litellm` | Every call goes to a [LiteLLM](https://github.com/BerriAI/litellm) proxy you also run |
 
 Switching is that one variable plus a redeploy. There is no migration and no state on either side, so switching back is the same move in reverse.
+
+<Warning>
+  Because `native` is the default, a deployment that sets nothing calls providers directly — which means the provider credentials must be present in the **web, api and worker** processes, not only in a proxy container. If you are upgrading a deployment that relied on the proxy, either supply those credentials to all three or set `LLM_GATEWAY=litellm` explicitly. Check before deploying, with a real call per model:
+
+  ```bash
+  npm run gateway:preflight -- --probe
+  ```
+</Warning>
 
 <Tip>
   Use `native` if you want one fewer service to run. Use a gateway if you want what a gateway is actually for — spend dashboards, provider fallback, caching, retries across vendors. Ragen does not build those, deliberately.
@@ -19,7 +27,7 @@ Switching is that one variable plus a redeploy. There is no migration and no sta
 
 ## Calling providers directly
 
-Set `LLM_GATEWAY=native`. Ragen then reads a **route table** naming which upstream serves each model id, and takes credentials from the environment.
+This is what you get by default; `LLM_GATEWAY=native` names it explicitly. Ragen reads a **route table** naming which upstream serves each model id, and takes credentials from the environment.
 
 ```yaml infra/llm-gateway/routes.yaml
 version: 1

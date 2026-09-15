@@ -157,6 +157,7 @@ DATABASE_URL="postgresql://postgres:<GENERATED_DB_PASSWORD>@localhost:55432/rage
 
 REDIS_URL=redis://localhost:56379
 QDRANT_URL=http://localhost:6333
+LLM_GATEWAY=litellm
 LITELLM_PROXY_URL=http://localhost:4000
 LITELLM_MASTER_KEY=<GENERATED_LITELLM_MASTER_KEY>
 
@@ -167,6 +168,10 @@ EMBEDDINGS_MODEL=bge-multilingual-gemma2
 BETTER_AUTH_SECRET=<random-secret>
 SESSION_AUTH_SECRET=<random-secret>
 ```
+
+<Note>
+  `LLM_GATEWAY=litellm` is here on purpose. Ragen calls providers directly by default, using a [route table](/configuration/model-gateway) that names Azure, Bedrock, Vertex and Scaleway — providers a new installation has no credentials for. This block starts a LiteLLM proxy instead, so it names that path explicitly rather than inheriting the default. Drop the line once you have provider credentials of your own.
+</Note>
 
 <Warning>
   Every `<GENERATED_...>` and `<random-secret>` placeholder must be replaced with its own unique, securely generated value. Do not share secrets between environments or use predictable values in production.
