@@ -75,7 +75,7 @@ Ragen maintains two separate logs.
 
 ## PII detection
 
-Personal data detection via Microsoft Presidio (including Polish-language recognisers for PESEL, NIP, REGON, ID card numbers, and IBAN) is available but **off by default**. Enable it with `FEATURE_FLAG_PII_MASKING=1`. Presidio runs as two additional containers, and per-organisation and per-file strictness settings are configured separately.
+Personal data detection via Microsoft Presidio — including Polish recognisers for PESEL, NIP, REGON, ID card numbers and IBAN, which validate checksums rather than only matching a shape — is available and **off unless configured**. Set `PRESIDIO_ANALYZER_URL` and `PRESIDIO_ANONYMIZER_URL`, and start the two containers with `docker compose --profile pii up -d`. Chat fails closed if the analyzer is unreachable, and each organisation chooses what happens to the original. Full detail: [PII masking](/security/pii-masking).
 
 ## Prompt injection protection
 

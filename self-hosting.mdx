@@ -120,7 +120,7 @@ Every service has a specific role in the stack. Removing one affects only the ca
 | Temporal | Asynchronous document ingestion workflows |
 | Docling | Local document parsing and OCR |
 | Redis | Required by the worker; gracefully degraded for the web app |
-| Presidio | Personal-data detection — optional, off by default |
+| Presidio | Personal-data detection — optional, behind the `pii` Compose profile |
 
 <Note>
   **Redis** deserves a careful reading of "optional." `apps/worker` requires `REDIS_URL` and refuses to start without it — it caches organization settings there. `apps/web` treats its absence as a real mode rather than a degraded one: settings are computed directly and the public chatbot rate limiter fails open, so rate limiting is disabled rather than enforced. `apps/api` never reads Redis at all; its rate limiter is in-memory.
@@ -134,7 +134,7 @@ The following flags are **off by default** — set them to `1` to enable:
 
 | Flag | Effect |
 |------|--------|
-| `FEATURE_FLAG_PII_MASKING` | Detect and mask personal data via Presidio before it reaches the model. Requires two extra containers (Presidio analyzer and anonymizer), which together use ~1 GB of RAM — that is why it is opt-in. |
+| `FEATURE_FLAG_PII_MASKING` | A kill switch, not a switch: masking follows `PRESIDIO_ANALYZER_URL` and `PRESIDIO_ANONYMIZER_URL`, and `0` turns it off. The two containers use ~1 GB of RAM together and sit behind `--profile pii`, which is why it is opt-in. See [PII masking](/security/pii-masking). |
 | `FEATURE_FLAG_RERANKING` | Re-score retrieved chunks with a cross-encoder reranker before generating the answer. Requires `SCW_API_BASE` and `SCW_API_KEY` for the default Scaleway reranker, so it stays off until you supply credentials. |
 | `DOCLING_STRICT` | Fail document ingestion rather than fall back to a parser that sends documents to an external model. Set this for any deployment where documents must not leave your network. |
 
