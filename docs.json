@@ -3,14 +3,14 @@
   "theme": "luma",
   "name": "Ragen AI",
   "colors": {
-    "primary": "#394d9d",
-    "light": "#ca8396",
-    "dark": "#22284f"
+    "primary": "#394D9D",
+    "light": "#9EABE0",
+    "dark": "#2D3E80"
   },
-  "favicon": "https://media.brand.dev/b4ff4db8-8e6e-426b-ad9e-bd01f1d21dde.png",
+  "favicon": "/favicon.svg",
   "logo": {
-    "light": "https://media.brand.dev/5ed486f4-9e5d-4b36-bd8c-354f7d90b8f6.svg",
-    "dark": "https://media.brand.dev/5ed486f4-9e5d-4b36-bd8c-354f7d90b8f6.svg"
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
   },
   "navbar": {
     "primary": {
