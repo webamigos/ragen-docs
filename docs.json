@@ -45,6 +45,7 @@
             "pages": [
               "configuration/environment",
               "configuration/models",
+              "configuration/model-gateway",
               "configuration/storage",
               "configuration/open-models"
             ]
