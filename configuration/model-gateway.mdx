@@ -163,6 +163,13 @@ npm run gateway:preflight -- --probe
 
 ## If a provider stops working
 
-There is no mode to switch back to, so the fix is per model rather than global: point the affected route at something else. An upstream you already trust — a gateway you run, another region, another vendor's equivalent model — becomes an `openai-compatible` route and two environment variables, and the models you did not touch keep their existing path.
+There is no mode to switch back to, so the fix is per model rather than global: point the affected route at something else and leave every other route alone. Which shape the replacement takes depends on what you are pointing at, and the two are not interchangeable:
 
-That is the same mechanism as [attaching a gateway](#attaching-an-external-gateway), which is why it needs no separate rollback procedure: routing is configuration, and it always was.
+| Replacement | Route |
+|---|---|
+| Another provider family, or the same one in another region — Bedrock instead of Azure, Vertex in another location | Its **native** provider (`bedrock`, `vertex`, `azure`, `openai`, `anthropic`), with that family's own credentials in the environment. A `location` on the route overrides the deployment-wide one |
+| An upstream that speaks OpenAI's API — a gateway you run, vLLM, Ollama, a hosted aggregator | `provider: openai-compatible` with a `connection` name, whose base URL and key are two environment variables derived from that name |
+
+Only the second is "two variables and done"; the first needs whatever credentials that provider family requires, which is why [Credentials per provider](#credentials-per-provider) is the table to check before assuming a swap is free.
+
+Either way it is the same mechanism as [attaching a gateway](#attaching-an-external-gateway), which is why there is no separate rollback procedure: routing is configuration, and it always was.

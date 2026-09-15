@@ -98,7 +98,9 @@ One variable selects an implementation for each provider, and that choice determ
         ```
       </Tab>
       <Tab title="cohere">
-        Cohere Rerank v3.5, over any endpoint speaking Cohere's `/rerank` shape — Bedrock, Cohere's own API, or anything else that serves it.
+        Cohere Rerank v3.5, over an endpoint speaking Cohere's rerank **HTTP shape**: Cohere's own API, a gateway in front of it, a proxy you run that has the model registered, or a local server that exposes a Cohere-compatible `/rerank` (vLLM does).
+
+        Not Bedrock. Bedrock's rerank is an AWS API with SigV4 signing, not a Cohere-shaped endpoint a base URL and a bearer key can reach — the proxy used to do that translation, and it is gone.
 
         ```bash
         RERANK_PROVIDER=cohere

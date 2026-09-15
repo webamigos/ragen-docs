@@ -117,7 +117,7 @@ No GPU is required unless you choose to serve models locally.
 
 ## Verify your installation
 
-Once everything is running, use these curl commands to confirm each service is healthy:
+Once everything is running, confirm each service is healthy:
 
 ```bash
 # API server — should return {"status":"ok"}
@@ -125,7 +125,15 @@ curl http://localhost:3001/v1/healthcheck
 
 # Qdrant — confirms the vector store is up
 curl http://localhost:6333/collections
+
+# Every model in the route table, with one real call each
+npm run gateway:preflight -- --probe
 ```
+
+The last one is the check the other two cannot stand in for. Ragen calls model
+providers itself, so "the services are up" says nothing about whether a
+credential works — and a provider that is configured but unauthenticated fails
+at the first question a user asks, not at boot.
 
 <Note>
   If document ingestion appears to hang, check the worker log first. The upload endpoint returns `200` as soon as the file is stored — parsing is asynchronous, and a parsing failure is only visible in the worker log and in the document's status field in the UI.
