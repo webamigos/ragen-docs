@@ -116,7 +116,7 @@ Every service has a specific role in the stack. Removing one affects only the ca
 |---------|------------|
 | Postgres | Everything — the primary application database |
 | Qdrant | Vector search and document retrieval |
-| LiteLLM | Every model call: chat, embeddings, and reranking |
+| LiteLLM | Every model call: chat, embeddings, and reranking — unless `LLM_GATEWAY=native`, which needs no proxy ([Model gateway](/configuration/model-gateway)) |
 | Temporal | Asynchronous document ingestion workflows |
 | Docling | Local document parsing and OCR |
 | Redis | Required by the worker; gracefully degraded for the web app |
@@ -176,7 +176,7 @@ For production, add an `ENCRYPTION_PROVIDER`, a persistent storage path or S3 cr
 
 ## Running without internet access
 
-Ragen's architecture is designed to support fully air-gapped deployments: the model layer is decoupled behind LiteLLM, and document parsing is local by default. Two honest caveats apply before you commit to this path.
+Ragen's architecture is designed to support fully air-gapped deployments: the model layer is decoupled behind a route table or a proxy of your choosing, and document parsing is local by default. Two honest caveats apply before you commit to this path.
 
 **It is deployment work, not a flag.** Serving a capable model on your own hardware means provisioning GPU capacity. Locally-served open models generally perform less well than commercial ones on complex questions — how much less depends on your documents and your questions, so measure it on your own material first.
 

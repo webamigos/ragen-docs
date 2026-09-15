@@ -14,12 +14,12 @@ There is no telemetry channel to the vendor. OpenTelemetry support exists, but i
 
 ## What leaves your network
 
-Every model call routes through a LiteLLM proxy that you also run. What leaves your network depends entirely on what that proxy points at:
+Every model call goes where your configuration points it — directly to a provider, or through a proxy you also run ([Model gateway](/configuration/model-gateway)). What leaves your network depends on the destination, not on which path reaches it:
 
 | Configuration | What leaves your network |
 |---|---|
-| LiteLLM → locally-served model | Nothing, in normal operation |
-| LiteLLM → commercial API | The prompt: the question plus the retrieved document chunks needed to answer it |
+| Pointed at a locally-served model | Nothing, in normal operation |
+| Pointed at a commercial API | The prompt: the question plus the retrieved document chunks needed to answer it |
 
 Two things to know before assuming full isolation:
 

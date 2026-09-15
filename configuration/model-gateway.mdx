@@ -1,0 +1,113 @@
+---
+title: 'Model Gateway — Direct Provider Calls or a Proxy of Your Choosing'
+sidebarTitle: 'Model gateway'
+description: 'Choose how Ragen reaches model providers: call them directly with LLM_GATEWAY=native, or route through LiteLLM, Portkey, vLLM, or Ollama.'
+---
+
+Ragen has to turn "answer this question with `gpt-5.4`" into an HTTP call to somebody's API. There are two ways it can do that, and you choose which.
+
+| `LLM_GATEWAY` | What happens |
+|---|---|
+| `litellm` *(default)* | Every call goes to a [LiteLLM](https://github.com/BerriAI/litellm) proxy you also run |
+| `native` | Ragen calls providers itself, with no proxy in the path |
+
+Switching is that one variable plus a redeploy. There is no migration and no state on either side, so switching back is the same move in reverse.
+
+<Tip>
+  Use `native` if you want one fewer service to run. Use a gateway if you want what a gateway is actually for — spend dashboards, provider fallback, caching, retries across vendors. Ragen does not build those, deliberately.
+</Tip>
+
+## Calling providers directly
+
+Set `LLM_GATEWAY=native`. Ragen then reads a **route table** naming which upstream serves each model id, and takes credentials from the environment.
+
+```yaml infra/llm-gateway/routes.yaml
+version: 1
+routes:
+  gpt-5.4:
+    provider: azure
+    model: gpt-5.4
+  gemini-2.5-flash:
+    provider: vertex
+    model: gemini-2.5-flash
+  claude-sonnet-5:
+    provider: bedrock
+    model: eu.anthropic.claude-sonnet-5
+```
+
+Point `LLM_ROUTES_PATH` at your own file to serve a different set. The shipped table is Ragen's own installation — a default, not a law.
+
+A route carries no credentials and no display name. Credentials come from the environment; display names and capability flags are a separate concern.
+
+### Credentials per provider
+
+| `provider` | Environment |
+|---|---|
+| `azure` | `AZURE_API_KEY`, `AZURE_API_BASE`, optionally `AZURE_API_VERSION` |
+| `vertex` | `VERTEX_PROJECT`, `VERTEX_LOCATION`, and `GOOGLE_APPLICATION_CREDENTIALS` pointing at a **file** |
+| `bedrock` | `AWS_BEDROCK_REGION` — credentials come from the AWS default chain, so an instance role or SSO works |
+| `openai` | `OPENAI_API_KEY`, optionally `OPENAI_BASE_URL` |
+| `openai-compatible` | See [Attaching a different gateway](#attaching-a-different-gateway) |
+
+<Warning>
+  **Vertex takes a file path, not the JSON.** `VERTEX_CREDENTIALS` holds the service-account JSON itself, which is what the proxy wants. Google's own libraries want a **file path** in `GOOGLE_APPLICATION_CREDENTIALS`. Setting the first and expecting the second is the most common way a `native` cutover fails — and it fails at the first model call, not at boot.
+</Warning>
+
+## Attaching a different gateway
+
+Anything speaking OpenAI's `/v1/chat/completions` and `/v1/embeddings` can serve some or all of your models: [Portkey](https://github.com/portkey-ai/gateway), [vLLM](https://docs.vllm.ai), [Ollama](https://ollama.com), Text Generation Inference — and LiteLLM itself, which is why turning the proxy off is not a one-way door.
+
+Give the route `provider: openai-compatible` and a `connection` name:
+
+```yaml
+routes:
+  my-model:
+    provider: openai-compatible
+    connection: portkey
+    model: gpt-4o
+```
+
+The connection name becomes the environment variables, upper-cased:
+
+```bash
+LLM_PORTKEY_BASE_URL=https://your-gateway.example.com/v1
+LLM_PORTKEY_API_KEY=sk-...
+LLM_PORTKEY_HEADERS={"x-portkey-provider":"openai"}   # optional
+```
+
+That is the whole integration. A new upstream is a route and two variables — no code change.
+
+### Per model, not per deployment
+
+`connection` is a property of the route, so different models can come from different places at once: a local vLLM for the cheap ones, a hosted API for the hard ones, a gateway in front of a third. Ragen does not care that they differ.
+
+## Before you switch
+
+The flip does **not** fail at boot. It fails at the first model call, as a 5xx, because that is the first moment anything checks whether a credential works.
+
+<Steps>
+  <Step title="Run the preflight">
+    ```bash
+    npm run gateway:preflight -- --probe
+    ```
+
+    `--probe` makes one real call per configured model. It exists because "configured" and "works" turned out to be different questions — a provider can have every variable set and still fail to authenticate.
+  </Step>
+
+  <Step title="Confirm the running app agrees">
+    ```bash
+    curl https://your-ragen/api/healthcheck
+    # {"status":"ok","llmGateway":"native"}
+    ```
+
+    The app answers this from inside its own process, so it reports what actually served your requests rather than what you believe you configured.
+  </Step>
+</Steps>
+
+<Warning>
+  **A missing `llmGateway` field is not a default.** If that key is absent, the running build predates the code that reads `LLM_GATEWAY` — so the variable is set and nothing reads it. Read an absent field as "the flag is doing nothing", never as `litellm`.
+</Warning>
+
+## Rolling back
+
+Set `LLM_GATEWAY=litellm` and redeploy. No migration, no state, nothing to undo. Keeping the proxy running for a week after a switch costs one container and buys a rollback that takes one variable.

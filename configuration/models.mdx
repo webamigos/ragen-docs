@@ -1,10 +1,12 @@
 ---
 title: 'Configuring AI Language Model Providers in Ragen AI'
 sidebarTitle: 'Models'
-description: 'Route all LLM calls through a LiteLLM proxy to any provider — OpenAI, Anthropic, Google, Bedrock, Scaleway, or a local vLLM/Ollama server.'
+description: 'Set which model answers, rephrases, summarises and embeds — and reach any provider directly or through a gateway you run.'
 ---
 
-Every model call Ragen makes — answering questions, rephrasing queries, summarising documents, and generating embeddings — routes through a single LiteLLM proxy. You set `LITELLM_PROXY_URL` to tell Ragen where that proxy lives, and you configure the available models in the LiteLLM configuration file (`litellm/config.yaml` in your deployment). The environment variables below tell each part of the stack which model name to request from the proxy.
+Ragen calls language models in four roles — answering questions, rephrasing queries, summarising documents, and generating embeddings. This page is about **which model** fills each role. [Model gateway](/configuration/model-gateway) is about **how Ragen reaches it**: directly, or through a proxy you run.
+
+The variables below name the models. They mean the same thing either way.
 
 ## Model Roles
 
@@ -23,7 +25,7 @@ Ragen calls language models in four distinct roles. Each role has its own enviro
   Changing `EMBEDDINGS_MODEL` or `VECTOR_SIZE` after you have ingested documents invalidates the entire Qdrant collection. You must re-index all documents from scratch if you switch embedding models.
 </Warning>
 
-Set `DEFAULT_MODEL_PROVIDER=litellm` to route chat calls through the proxy:
+A complete set of model roles:
 
 ```bash
 DEFAULT_MODEL_PROVIDER=litellm
@@ -40,7 +42,7 @@ EMBEDDINGS_MODEL=bge-multilingual-gemma2
 
 ## Supported Providers
 
-The LiteLLM proxy supports every major LLM provider. Add the models you want to use to your LiteLLM configuration file, then set the corresponding API key environment variable.
+Every major provider is reachable. Which file you name the model in depends on how you reach it — a route table under `LLM_GATEWAY=native`, or your proxy's own config — but the API key variables are the same either way.
 
 <CardGroup cols={2}>
   <Card title="OpenAI" icon="circle">
