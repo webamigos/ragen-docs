@@ -175,12 +175,15 @@ Temporal ([ADR-26](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/26-a
 
 #### `WORKER_RUNTIME=bullmq`
 
-BullMQ over Redis. `REDIS_URL` has no fallback anywhere — a queue with no Redis is a worker that starts and quietly processes nothing, which is the worse outcome. The Redis it points at must run `maxmemory-policy noeviction`: an evicting instance drops queue keys, and the jobs go with them.
+BullMQ over Redis. `REDIS_URL` has no fallback anywhere — a queue with no Redis is a worker that starts and quietly processes nothing, which is the worse outcome. The Redis it points at must run `maxmemory-policy noeviction`: an evicting instance drops queue keys, and the jobs go with them. The queue dashboard replaces the Temporal UI an install used to get on port 8080; it is off unless `WORKER_ADMIN_USER` and `WORKER_ADMIN_PASSWORD` are both set, because it shows every job payload and a dashboard that appears by default on an unauthenticated port is a finding rather than a feature.
 
-| Variable             | Config field  |              |
-| -------------------- | ------------- | ------------ |
-| `REDIS_URL`          | `url`         | **required** |
-| `WORKER_CONCURRENCY` | `concurrency` | optional     |
+| Variable                | Config field    |              |
+| ----------------------- | --------------- | ------------ |
+| `REDIS_URL`             | `url`           | **required** |
+| `WORKER_CONCURRENCY`    | `concurrency`   | optional     |
+| `WORKER_ADMIN_PORT`     | `adminPort`     | optional     |
+| `WORKER_ADMIN_USER`     | `adminUser`     | optional     |
+| `WORKER_ADMIN_PASSWORD` | `adminPassword` | optional     |
 
 ## Settings
 
