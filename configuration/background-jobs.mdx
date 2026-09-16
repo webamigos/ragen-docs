@@ -1,0 +1,85 @@
+---
+title: 'Background Jobs, Worker Runtimes and Concurrency in Ragen AI'
+sidebarTitle: 'Background jobs'
+description: 'Ragen runs document ingest, website scraping, document generation and nightly maintenance on a background worker. Choose its engine with WORKER_RUNTIME and size it with WORKER_CONCURRENCY.'
+---
+
+Everything that takes longer than a request runs on Ragen's worker: parsing and embedding an uploaded document, scraping a website, generating a document, re-indexing a rolled-back version, and two nightly maintenance jobs. The web application never does this work itself — it enqueues a job and the worker picks it up.
+
+Which engine carries those jobs is a deployment choice.
+
+## Choosing a runtime
+
+`WORKER_RUNTIME` selects the engine. The **producers and the worker must agree**: an application configured for one engine writes jobs that a worker configured for the other never sees, and the symptom is a document that stays in "processing" forever rather than an error.
+
+| Value | What it needs | Notes |
+|---|---|---|
+| `temporal` | A Temporal server at `TEMPORAL_SERVER_ADDRESS` | The default when `WORKER_RUNTIME` is unset. Two extra containers. |
+| `bullmq` | Redis at `REDIS_URL` | Lighter: no gRPC, no second database, and the queues are readable with `redis-cli`. |
+
+<Note>
+  The worker already requires `REDIS_URL` on either runtime — it caches organization settings there. What `bullmq` adds is that the **web application and API need it too**: a producer that cannot reach Redis cannot enqueue a job at all. The worker also refuses to start against a Redis configured to evict keys, because an evicting instance can drop queued jobs silently, which looks exactly like work that was never submitted. Set `maxmemory-policy noeviction`.
+</Note>
+
+## Sizing the worker
+
+`WORKER_CONCURRENCY` sets how many jobs the worker runs at once. It applies to `bullmq` only; on `temporal` the equivalent limit is the SDK's own and this variable does nothing.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `WORKER_CONCURRENCY` | Optional | `10` | Jobs in flight per queue, on `bullmq` |
+
+**It counts whole jobs, not steps.** One document ingest is a single job made of roughly twenty sequential steps — download, parse, chunk, summarize, mask, embed, store. So `WORKER_CONCURRENCY=10` means ten *documents* at a time, not ten operations.
+
+That distinction is the one worth getting right, because it decides what a bulk upload feels like:
+
+```bash title=".env"
+# Twenty files can be in flight at once. Raise this to the size of the
+# largest upload burst you expect, then watch your provider's rate limits.
+WORKER_CONCURRENCY=20
+```
+
+### What we measured
+
+On 2026-09-16 we ran 416 real ingests of ~500-word documents across both runtimes on one machine, against real embedding, summary and scoring providers. With **twenty documents uploaded at once**, measured per file from the moment the job was enqueued:
+
+| Configuration | Median | 95th percentile | Time before parsing started |
+|---|---|---|---|
+| `temporal` | 12.5s | 22.1s | 1.4s |
+| `bullmq`, default concurrency (10) | 24.9s | 40.9s | 18.5s |
+| `bullmq`, `WORKER_CONCURRENCY=20` | 12.3s | 29.6s | 0.7s |
+
+Read the third column first: at the default, half the batch spent eighteen seconds waiting for a free slot rather than being processed. The parsing and embedding times themselves were identical in all three configurations. **The difference is the concurrency ceiling, not the engine** — with a single document, `bullmq` is the faster of the two (6.9s against 10.0s).
+
+<Warning>
+  These numbers size a deployment; they are not a throughput guarantee. They come from one machine on one afternoon, with short text documents. Your own documents, parser, embedding provider and network will move every figure here. A 200-page PDF parsed by Docling is minutes of work, not seconds.
+</Warning>
+
+### How to pick a number
+
+1. Start from the largest burst you expect — a customer's initial import, a folder re-index, a Google Drive sync.
+2. Raise `WORKER_CONCURRENCY` to roughly that number, then check your model provider's rate limits. Every concurrent ingest issues embedding and summary calls; the ceiling that matters is usually the provider's, not your worker's.
+3. Add worker replicas rather than raising the number indefinitely. `WORKER_CONCURRENCY` is per worker process, so three replicas at 20 give you 60 documents in flight.
+
+The two nightly maintenance jobs are pinned to one at a time regardless of this setting, across every replica, so they cannot overlap.
+
+## Watching the queues
+
+On `bullmq`, the worker can serve a queue dashboard showing waiting, active, completed and failed jobs, with each job's payload and failure stack.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `WORKER_ADMIN_USER` | Optional | — | Enables the dashboard when set with a password |
+| `WORKER_ADMIN_PASSWORD` | Optional | — | Basic-auth password |
+| `WORKER_ADMIN_PORT` | Optional | `8090` | Port the dashboard listens on |
+
+It is **off unless both credentials are set**, because it shows every job's payload. Do not expose the port publicly.
+
+## Switching runtimes on a running deployment
+
+A job already in flight belongs to the engine that accepted it. Changing `WORKER_RUNTIME` orphans it: the new engine has never heard of it, so its document sits in "processing" until something re-indexes it.
+
+1. Stop the application, so no new jobs are produced.
+2. Let the worker finish what it has — confirm no document is still processing.
+3. Change `WORKER_RUNTIME` on the worker **and** on the application.
+4. Start both, and confirm the two nightly schedules exist on the new engine.

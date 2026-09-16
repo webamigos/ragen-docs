@@ -116,7 +116,7 @@ Every service has a specific role in the stack. Removing one affects only the ca
 |---------|------------|
 | Postgres | Everything — the primary application database |
 | Qdrant | Vector search and document retrieval |
-| Temporal | Asynchronous document ingestion workflows |
+| Temporal | Asynchronous document ingestion workflows — see [Background jobs](/configuration/background-jobs) for choosing an engine and sizing the worker |
 | Docling | Local document parsing and OCR |
 | Redis | Required by the worker; gracefully degraded for the web app |
 | Presidio | Personal-data detection — optional, behind the `pii` Compose profile |

@@ -48,6 +48,7 @@
               "configuration/models",
               "configuration/model-gateway",
               "configuration/storage",
+              "configuration/background-jobs",
               "configuration/open-models"
             ]
           },
