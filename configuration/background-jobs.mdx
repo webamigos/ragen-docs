@@ -49,7 +49,7 @@ On 2026-09-16 we ran 416 real ingests of ~500-word documents across both runtime
 | `bullmq`, default concurrency (10) | 24.9s | 40.9s | 18.5s |
 | `bullmq`, `WORKER_CONCURRENCY=20` | 12.3s | 29.6s | 0.7s |
 
-Read the third column first: at the default, half the batch spent eighteen seconds waiting for a free slot rather than being processed. The parsing and embedding times themselves were identical in all three configurations. **The difference is the concurrency ceiling, not the engine** — with a single document, `bullmq` is the faster of the two (6.9s against 10.0s).
+Read the last column first: at the default, half the batch spent eighteen seconds waiting for a free slot rather than being processed. The parsing and embedding times themselves were identical in all three configurations. **The difference is the concurrency ceiling, not the engine** — with a single document, `bullmq` is the faster of the two (6.9s against 10.0s).
 
 <Warning>
   These numbers size a deployment; they are not a throughput guarantee. They come from one machine on one afternoon, with short text documents. Your own documents, parser, embedding provider and network will move every figure here. A 200-page PDF parsed by Docling is minutes of work, not seconds.
@@ -80,6 +80,11 @@ It is **off unless both credentials are set**, because it shows every job's payl
 A job already in flight belongs to the engine that accepted it. Changing `WORKER_RUNTIME` orphans it: the new engine has never heard of it, so its document sits in "processing" until something re-indexes it.
 
 1. Stop the application, so no new jobs are produced.
-2. Let the worker finish what it has — confirm no document is still processing.
+2. Let the worker finish everything it holds — not only documents. A website
+   scrape, a document generation, a re-index and a nightly maintenance run are
+   orphaned by the switch exactly as an ingest is, and only the ingest leaves a
+   visible "processing" state behind. Check the old engine's own view (the
+   Temporal UI, or the queue dashboard) and wait until nothing is waiting or
+   active on any queue.
 3. Change `WORKER_RUNTIME` on the worker **and** on the application.
 4. Start both, and confirm the two nightly schedules exist on the new engine.
