@@ -160,11 +160,11 @@ OpenAI's `/v1/audio/*` API. Nothing is required here because `SPEECH_API_KEY` fa
 
 ### Worker runtime
 
-Chosen with `WORKER_RUNTIME`, which defaults to `temporal`.
+Chosen with `WORKER_RUNTIME`, which defaults to `bullmq`.
 
 #### `WORKER_RUNTIME=temporal`
 
-Temporal ([ADR-26](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/26-absorb-ragen-worker-into-monorepo.md)), the default. `TEMPORAL_SERVER_ADDRESS` is required rather than left to the `localhost:7233` fallback, because that fallback is right on a laptop and silent everywhere else: a deployed process pointing at its own container connects to nothing and processes nothing, with no error to read.
+Temporal, no longer the default and no longer in the compose file — an install that wants durable execution runs its own server and selects it here. `TEMPORAL_SERVER_ADDRESS` is required rather than left to the `localhost:7233` fallback, because that fallback is right on a laptop and silent everywhere else: a deployed process pointing at its own container connects to nothing and processes nothing, with no error to read.
 
 | Variable                  | Config field |              |
 | ------------------------- | ------------ | ------------ |
@@ -175,7 +175,7 @@ Temporal ([ADR-26](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/26-a
 
 #### `WORKER_RUNTIME=bullmq`
 
-BullMQ over Redis. `REDIS_URL` has no fallback anywhere — a queue with no Redis is a worker that starts and quietly processes nothing, which is the worse outcome. The Redis it points at must run `maxmemory-policy noeviction`: an evicting instance drops queue keys, and the jobs go with them. The queue dashboard replaces the Temporal UI an install used to get on port 8080; it is off unless `WORKER_ADMIN_USER` and `WORKER_ADMIN_PASSWORD` are both set, because it shows every job payload and a dashboard that appears by default on an unauthenticated port is a finding rather than a feature.
+BullMQ over Redis, and the default. `REDIS_URL` has no fallback anywhere — a queue with no Redis is a worker that starts and quietly processes nothing, which is the worse outcome. The Redis it points at must run `maxmemory-policy noeviction`: an evicting instance drops queue keys, and the jobs go with them. The queue dashboard replaces the Temporal UI an install used to get on port 8080; it is off unless `WORKER_ADMIN_USER` and `WORKER_ADMIN_PASSWORD` are both set, because it shows every job payload and a dashboard that appears by default on an unauthenticated port is a finding rather than a feature.
 
 | Variable                | Config field    |              |
 | ----------------------- | --------------- | ------------ |
