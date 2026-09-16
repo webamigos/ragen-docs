@@ -27,15 +27,15 @@ Which engine carries those jobs is a deployment choice.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `WORKER_CONCURRENCY` | Optional | `10` | Jobs in flight per queue, on `bullmq` |
+| `WORKER_CONCURRENCY` | Optional | `20` | Jobs in flight per queue, on `bullmq` |
 
-**It counts whole jobs, not steps.** One document ingest is a single job made of roughly twenty sequential steps — download, parse, chunk, summarize, mask, embed, store. So `WORKER_CONCURRENCY=10` means ten *documents* at a time, not ten operations.
+**It counts whole jobs, not steps.** One document ingest is a single job made of roughly twenty sequential steps — download, parse, chunk, summarize, mask, embed, store. So `WORKER_CONCURRENCY=20` means twenty *documents* at a time, not twenty operations.
 
 That distinction is the one worth getting right, because it decides what a bulk upload feels like:
 
 ```bash title=".env"
-# Twenty files can be in flight at once. Raise this to the size of the
-# largest upload burst you expect, then watch your provider's rate limits.
+# Raise this to the size of the largest upload burst you expect, then watch
+# your model provider's rate limits — they usually bind before the worker does.
 WORKER_CONCURRENCY=20
 ```
 
@@ -46,10 +46,10 @@ On 2026-09-16 we ran 416 real ingests of ~500-word documents across both runtime
 | Configuration | Median | 95th percentile | Time before parsing started |
 |---|---|---|---|
 | `temporal` | 12.5s | 22.1s | 1.4s |
-| `bullmq`, default concurrency (10) | 24.9s | 40.9s | 18.5s |
-| `bullmq`, `WORKER_CONCURRENCY=20` | 12.3s | 29.6s | 0.7s |
+| `bullmq`, concurrency 10 | 24.9s | 40.9s | 18.5s |
+| `bullmq`, concurrency 20 (the default) | 12.3s | 29.6s | 0.7s |
 
-Read the last column first: at the default, half the batch spent eighteen seconds waiting for a free slot rather than being processed. The parsing and embedding times themselves were identical in all three configurations. **The difference is the concurrency ceiling, not the engine** — with a single document, `bullmq` is the faster of the two (6.9s against 10.0s).
+Read the last column first: at 10, half the batch spent eighteen seconds waiting for a free slot rather than being processed. **That measurement is why the default is 20** — it was 10 until this run compared the two. The parsing and embedding times themselves were identical in all three configurations. **The difference is the concurrency ceiling, not the engine** — with a single document, `bullmq` is the faster of the two (6.9s against 10.0s).
 
 <Warning>
   These numbers size a deployment; they are not a throughput guarantee. They come from one machine on one afternoon, with short text documents. Your own documents, parser, embedding provider and network will move every figure here. A 200-page PDF parsed by Docling is minutes of work, not seconds.
