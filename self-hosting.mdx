@@ -116,13 +116,13 @@ Every service has a specific role in the stack. Removing one affects only the ca
 |---------|------------|
 | Postgres | Everything — the primary application database |
 | Qdrant | Vector search and document retrieval |
-| Temporal | Asynchronous document ingestion workflows |
+| Temporal | Background jobs, when `WORKER_RUNTIME` is `temporal` (the default). Under `bullmq` it is not used at all — see [Background jobs](/configuration/background-jobs) |
 | Docling | Local document parsing and OCR |
-| Redis | Required by the worker; gracefully degraded for the web app |
+| Redis | Always required by the worker; also required by the web app and API under `WORKER_RUNTIME=bullmq` |
 | Presidio | Personal-data detection — optional, behind the `pii` Compose profile |
 
 <Note>
-  **Redis** deserves a careful reading of "optional." `apps/worker` requires `REDIS_URL` and refuses to start without it — it caches organization settings there. `apps/web` treats its absence as a real mode rather than a degraded one: settings are computed directly and the public chatbot rate limiter fails open, so rate limiting is disabled rather than enforced. `apps/api` never reads Redis at all; its rate limiter is in-memory.
+  **Redis** deserves a careful reading of "optional," and the answer now depends on `WORKER_RUNTIME`. `apps/worker` requires `REDIS_URL` on either runtime and refuses to start without it — it caches organization settings there. Under `WORKER_RUNTIME=temporal`, `apps/web` treats its absence as a real mode rather than a degraded one: settings are computed directly and the public chatbot rate limiter fails open, so rate limiting is disabled rather than enforced, and `apps/api` does not read Redis at all — its rate limiter is in-memory. Under `WORKER_RUNTIME=bullmq` both of them need it, because that is where the queue lives: an application that cannot reach Redis cannot enqueue a job, so an upload fails instead of being processed later.
 </Note>
 
 ## Feature flags
