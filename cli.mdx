@@ -1,0 +1,83 @@
+---
+title: 'Ragen CLI: Install the ragen Command and Scaffold from Your Terminal'
+sidebarTitle: 'CLI'
+description: 'Install the Ragen command line with npm, scaffold an installation without leaving your terminal, and see which commands are coming next.'
+---
+
+The Ragen CLI puts a `ragen` command on your `PATH`. It is early: one command does real work today, and it grows toward managing an installation — signing in, checking its health, moving documents in and out — without leaving your terminal.
+
+```bash
+npm install -g ragen-cli
+ragen --help
+```
+
+<Note>
+  The package is `ragen-cli`; the command is `ragen`. npm declines the plain name because its similarity filter reads it as too close to existing packages, so the install line differs from what you type afterwards.
+</Note>
+
+## Requirements
+
+The CLI asks for **Node.js 20 or newer**, which is deliberately lower than the **Node.js 24** a Ragen installation itself needs. This is a client — refusing to print help on an older runtime would be needlessly strict. `ragen create` still enforces the real requirement at the point where an older Node would damage the install.
+
+## What it does today
+
+| Command | What it does |
+|---|---|
+| `ragen create [dir]` | Scaffolds a self-hosted Ragen installation |
+| `ragen help` | Lists every command, built or not |
+| `ragen version` | Prints the version of the CLI |
+
+`ragen create` hands the work to [`create-ragen-app`](/quickstart) and forwards your arguments unchanged, so these two are equivalent:
+
+```bash
+npx create-ragen-app my-ragen-app --skip-docker
+ragen create my-ragen-app --skip-docker
+```
+
+<Tip>
+  The scaffolder's flags — `--yes`, `--provider=`, `--skip-docker`, `--skip-install`, `--ref=` — all work through `ragen create`. The [Quick Start](/quickstart) documents what each one changes.
+</Tip>
+
+The scaffolder stays a separate package on purpose. It is the only thing exercising the first-run path, it is tested on every change to the repository, and a second copy of that wizard inside the CLI would drift out of step without anything noticing.
+
+## What is coming
+
+These commands are listed in `ragen help` under **Not built yet**:
+
+| Command | What it will do |
+|---|---|
+| `ragen login` | Authenticate against an installation with an API key |
+| `ragen doctor` | Check an installation's configuration — reachability, credentials, models, the queue |
+| `ragen kb` | List knowledge bases and upload documents from the terminal |
+| `ragen plugin` | Manage custom MCP connectors |
+
+<Warning>
+  A command that is not built prints what it is waiting on and **exits non-zero**. That is deliberate: a script that runs `ragen plugin install` against a version that cannot do it should fail, not read the silence as success.
+</Warning>
+
+`ragen plugin` is the furthest out, and it waits on something larger than the CLI. Ragen's extension API is MCP — third-party code runs in its own process and never inside the application — and the piece that lets you point Ragen at a server of your own is designed but not yet built. Until then, see [MCP connectors](/integrations/mcp-connectors) for the connectors that ship today.
+
+## Versioning
+
+The CLI talks to an installation over the [public API](/api-reference/quickstart), and self-hosted deployments run many versions at once. Its version number describes the client, not the server you point it at. Upgrade it like any other global package:
+
+```bash
+npm install -g ragen-cli@latest
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Scaffold an installation and ask your first question of your own documents.
+  </Card>
+  <Card title="Roadmap" icon="map" href="/roadmap">
+    What is being built next, across the product and the tooling around it.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/quickstart">
+    The surface the CLI will speak to once it can sign in.
+  </Card>
+  <Card title="Request a Command" icon="github" href="https://github.com/webamigos/RagenAI/issues">
+    Tell us what you would automate first — that is what decides the order.
+  </Card>
+</CardGroup>

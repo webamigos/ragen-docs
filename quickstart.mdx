@@ -27,6 +27,10 @@ No GPU is required unless you choose to serve models locally.
     npx create-ragen-app my-ragen-app
     ```
 
+    <Note>
+      If you would rather have a `ragen` command on your `PATH`, `npm i -g ragen-cli` provides one and `ragen create my-ragen-app` runs the same wizard with the same flags. See the [CLI](/cli) page.
+    </Note>
+
     The wizard clones the repository, generates every secret it safely can, prompts you for a model provider key, asks how you want storage and encryption configured, starts the backing services in Docker, and runs the first-time setup — the Prisma client, schema migrations, and the seed data. It does **not** start the applications themselves; that is the next step.
 
     <Tip>
