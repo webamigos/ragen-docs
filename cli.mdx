@@ -1,10 +1,18 @@
 ---
 title: 'Ragen CLI: Install the ragen Command and Scaffold from Your Terminal'
 sidebarTitle: 'CLI'
-description: 'Install the Ragen command line with npm, scaffold an installation without leaving your terminal, and see which commands are coming next.'
+description: 'Run the Ragen command line with npx or install it globally, scaffold an installation without leaving your terminal, and see which commands are coming next.'
 ---
 
 The Ragen CLI puts a `ragen` command on your `PATH`. It is early: one command does real work today, and it grows toward managing an installation — signing in, checking its health, moving documents in and out — without leaving your terminal.
+
+Run it without installing anything:
+
+```bash
+npx ragen-cli@latest help
+```
+
+Or install it, which is worth doing once you reach for it regularly:
 
 ```bash
 npm install -g ragen-cli
@@ -12,8 +20,25 @@ ragen --help
 ```
 
 <Note>
-  The package is `ragen-cli`; the command is `ragen`. npm declines the plain name because its similarity filter reads it as too close to existing packages, so the install line differs from what you type afterwards.
+  The package is `ragen-cli`; the command is `ragen`. npm declines the plain name because its similarity filter reads it as too close to existing packages.
+
+  This matters most with `npx`, which takes a **package** name: `npx ragen-cli` works and `npx ragen` does not. After a global install you type `ragen`.
 </Note>
+
+## npx or a global install?
+
+Both are fine. The question is how often you run it.
+
+| | Use it when | The trade |
+|---|---|---|
+| `npx ragen-cli@latest` | Occasionally, or once — scaffolding an installation is a one-off | Always current, nothing left on your machine, a second or two of resolution each run |
+| `npm i -g ragen-cli` | You run it often, or want it offline and pinned | Instant to start, but it goes stale silently — upgrade it yourself |
+
+Today the CLI's only substantial command scaffolds an installation, which you do once, so `npx` is the better default. That flips when [`login` and `doctor`](#what-is-coming) arrive: a tool that holds credentials and gets run several times a day is worth installing.
+
+<Tip>
+  Other package managers have the same one-off runner: `pnpm dlx ragen-cli`, `yarn dlx ragen-cli`, `bunx ragen-cli`.
+</Tip>
 
 ## Requirements
 
@@ -30,9 +55,13 @@ The CLI asks for **Node.js 20 or newer**, which is deliberately lower than the *
 `ragen create` hands the work to [`create-ragen-app`](/quickstart) and forwards your arguments unchanged, so these two are equivalent:
 
 ```bash
-npx create-ragen-app my-ragen-app --skip-docker
+npx --yes create-ragen-app@latest my-ragen-app --skip-docker
 ragen create my-ragen-app --skip-docker
 ```
+
+`ragen create` passes `--yes` and `@latest`, so it always runs the current
+scaffolder without a confirmation prompt. A bare `npx create-ragen-app` may
+reuse whatever copy npx has cached.
 
 <Tip>
   The scaffolder's flags — `--yes`, `--provider=`, `--skip-docker`, `--skip-install`, `--ref=` — all work through `ragen create`. The [Quick Start](/quickstart) documents what each one changes.
