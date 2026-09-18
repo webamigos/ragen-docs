@@ -70,7 +70,7 @@ A `403` means the key and the request disagree about the assistant — either yo
 
 ### `ragen_list_assistants`
 
-List all assistants available to your API key's organisation. Use this to find an `assistant_id` before calling `ragen_chat`. This tool takes no parameters.
+List the assistants your API key can reach. A knowledge-base key sees every assistant its organisation owns; a key created for one assistant sees that one. Use this to find an `assistant_id` before calling `ragen_chat` — or, if exactly one comes back, to confirm you can omit it. This tool takes no parameters.
 
 **Success response:**
 
@@ -90,7 +90,7 @@ List all assistants available to your API key's organisation. Use this to find a
 { "success": false, "status": 401, "error": "Unauthorized" }
 ```
 
-Scoping is automatic: this calls the same `GET /v1/assistants` endpoint as the REST API, which already returns only the assistants belonging to your API key's organisation. There is no additional access configuration needed.
+Scoping is automatic: this calls the same `GET /v1/assistants` endpoint as the REST API, which returns what the key can reach — the organisation's assistants for a knowledge-base key, the single bound one otherwise. The example above shows a knowledge-base key. There is no additional access configuration needed.
 
 ## Configuring Claude Desktop
 
@@ -152,7 +152,7 @@ For custom agents or any MCP-compatible SDK, use Streamable HTTP transport and s
 
 ## Self-hosting the MCP server
 
-If you run Ragen yourself, the MCP server is a separate service — a thin one. It owns no data and holds no credentials: every tool call forwards the caller's own API key to the Ragen API, which does the authentication, the retrieval and the rate limiting. That is why it configures in four variables.
+If you run Ragen yourself, the MCP server is a separate service — a thin one. It owns no data and holds no credentials: every tool call forwards the caller's own API key to the Ragen API, which does the authentication, the retrieval and the rate limiting. That is why it configures in three variables, plus two optional ones for OpenTelemetry.
 
 Build it from the repository's `apps/mcp/Dockerfile`, whose build context is the repository root, and run `node dist/index.js`. It listens for Streamable HTTP on `/mcp`.
 

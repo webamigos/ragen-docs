@@ -121,7 +121,7 @@ Authorization: Bearer YOUR_API_KEY
 |---|---|
 | `400 Bad Request` | Missing required field, query too long, or `max_results` out of range |
 | `401 Unauthorized` | Missing or invalid API key |
-| `403 Forbidden` | API key is valid but has been deactivated |
+| `403 Forbidden` | The key is deactivated, or the request disagrees with the key's scope — an `assistant_id` the key is not bound to, or any `assistant_id` at all on a knowledge-base key |
 | `404 Not Found` | The specified assistant doesn't exist in your organization |
 | `429 Too Many Requests` | Rate limit exceeded — wait before retrying |
 

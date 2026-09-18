@@ -82,7 +82,7 @@ Returns `{ "object": "list", "data": [...] }` with OpenAI `file` objects.
 
 ## Retrieve a file
 
-`GET /v1/files/{id}` — returns the full OpenAI `file` object for a single file, or `404` if it doesn't exist in your project.
+`GET /v1/files/{id}` — returns the full OpenAI `file` object for a single file, or `404` if the file does not exist or falls outside what the key can reach.
 
 ## Delete a file
 

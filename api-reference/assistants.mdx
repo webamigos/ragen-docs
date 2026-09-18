@@ -79,7 +79,7 @@ Ragen maps OpenAI assistant fields to Ragen project concepts:
 { "id": "asst-abc123", "object": "assistant.deleted", "deleted": true }
 ```
 
-**Self-delete protection:** You cannot delete the assistant bound to the API key's own default project. Attempting it returns a `400` error:
+**Self-delete protection:** You cannot delete the assistant your API key is bound to — that would revoke the key's own context. Attempting it returns a `400` error. A key scoped to one assistant therefore deletes nothing at all: its own is refused here, and every other one is refused as out of scope with `403`.
 
 ```json
 {

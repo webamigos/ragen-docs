@@ -58,14 +58,14 @@ Folder permissions cascade automatically: granting access to a folder extends to
 
 ## API key scope
 
-Each API key is bound to one organization and one default project. The key cannot cross its organization boundary — cross-organization requests are always rejected.
+Each API key is bound to one organization, and to a scope chosen when the key is created: **one assistant**, or **the whole knowledge base**. The key cannot cross its organization boundary — cross-organization requests are always rejected — and within the organization the scope is a boundary too: a request that disagrees with it is refused with `403` rather than obliged. The scope cannot be changed afterwards; issue a new key instead.
 
 | Operation | Scope | Notes |
 |-----------|-------|-------|
-| `POST /v1/chat/completions`, `POST /v1/chat` | Project | Retrieval runs against the bound project's knowledge base |
-| `POST /v1/files`, `GET/DELETE /v1/files[/:id]` | Project | Files are owned by the bound project |
-| `POST/GET/PATCH/DELETE /v1/assistants[/:id]` | Organization | Lists every project in the org; cannot self-delete the key's bound project |
-| `POST/GET/PATCH/DELETE /v1/threads[/:id]` + messages | Organization | Lists every thread in the org; creates in the bound project when no `assistant_id` is given |
+| `POST /v1/chat/completions`, `POST /v1/chat` | Key scope | Retrieval runs against the bound assistant, or against the documents belonging to no assistant |
+| `POST /v1/files`, `GET/DELETE /v1/files[/:id]` | Key scope | Files belong to the bound assistant, or to no assistant for a knowledge-base key |
+| `POST/GET/PATCH/DELETE /v1/assistants[/:id]` | Key scope | A knowledge-base key sees every assistant in the org; an assistant-scoped key sees only its own, and can create or delete none |
+| `POST/GET/PATCH/DELETE /v1/threads[/:id]` + messages | Organization to list, key scope to create | Lists every thread in the org; creates against the key's scope, and refuses an `assistant_id` that disagrees with it |
 
 ### Debug mode
 

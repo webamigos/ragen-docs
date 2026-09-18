@@ -246,7 +246,7 @@ When you call `POST /v1/chat`, Ragen runs a five-step pipeline:
     Your API key is validated and the organization is resolved from it.
   </Step>
   <Step title="Assistant resolution">
-    The `assistant_id` is matched to a project within your organization.
+    The assistant comes from the API key's scope. A key bound to one assistant resolves to it; a knowledge-base key resolves to no assistant, and retrieval runs against the documents that belong to none. An `assistant_id` in the request must agree with that, or the call is refused with `403`.
   </Step>
   <Step title="RAG retrieval">
     Relevant document chunks are retrieved from the assistant's knowledge base via vector search.
