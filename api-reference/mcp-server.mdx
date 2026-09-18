@@ -30,13 +30,17 @@ Authorization: Bearer YOUR_API_KEY
 
 The Ragen MCP Server exposes two tools today.
 
+<Note>
+  **Omit `assistant_id` unless you have one.** The API key carries a scope: a key created for one assistant answers for it without being told, and a key scoped to the whole knowledge base rejects a request naming any assistant with `403`. `ragen_list_assistants` shows what the key you connected with can reach. See [Authentication](/api-reference/authentication#what-a-key-can-reach).
+</Note>
+
 <Accordion title="ragen_chat — Send a message to an assistant">
   Send a message to a Ragen assistant and receive a grounded answer drawn from its knowledge base. This is the MCP equivalent of `POST /v1/chat`.
 
   **Parameters**
 
-  <ParamField body="assistant_id" type="string" required>
-    The ID of the Ragen assistant (project) to send the message to. Use `ragen_list_assistants` to discover available IDs.
+  <ParamField body="assistant_id" type="string">
+    The ID of the Ragen assistant (project) to send the message to. Optional — the key decides by itself, and naming an assistant it is not scoped to is refused. Use `ragen_list_assistants` to see what this key can reach.
   </ParamField>
 
   <ParamField body="message" type="string" required>

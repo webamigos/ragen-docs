@@ -26,8 +26,17 @@ API keys are scoped to your organization. Create and manage them under **Setting
 
 ## Request parameters
 
-<ParamField body="assistant_id" type="string" required>
-  The assistant (project) ID to query. Retrieve available IDs from `GET /v1/assistants` or from **Settings → Assistant settings** in the dashboard.
+<Note>
+  **The API key decides which assistant, and this field has to agree with it.**
+  A key created for one assistant answers for that one whether or not you send
+  `assistant_id`; a key scoped to the knowledge base answers from the documents
+  that belong to no assistant, and rejects a request naming any assistant with
+  `403`. Omitting the field is the normal case. See
+  [Authentication](/api-reference/authentication#what-a-key-can-reach).
+</Note>
+
+<ParamField body="assistant_id" type="string">
+  The assistant (project) ID to query. Optional, and a Ragen extension the OpenAI wire format has no field for — which is the point: an OpenAI-compatible client that cannot send it works against this endpoint, because the API key already carries the scope. Retrieve available IDs from `GET /v1/assistants` or from **Settings → Assistant settings** in the dashboard.
 </ParamField>
 
 <ParamField body="messages" type="array" required>
@@ -186,7 +195,7 @@ The empty `choices: []` signals that this chunk carries usage data only.
     ```
   </Tab>
   <Tab title="Python (openai SDK)">
-    Point the OpenAI SDK at your Ragen instance. Pass `assistant_id` in `extra_body` since it's a Ragen-specific extension.
+    Point the OpenAI SDK at your Ragen instance. You can leave the assistant out entirely — the key decides — or pass `assistant_id` in `extra_body`, since it is a Ragen-specific extension with no field of its own in the OpenAI format.
 
     ```python
     import os

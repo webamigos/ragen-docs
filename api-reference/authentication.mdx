@@ -4,7 +4,7 @@ sidebarTitle: 'Authentication'
 description: 'Set up API key authentication for Ragen AI. Learn the Bearer token format, Authorization header usage, and how to handle 401 and 403 errors.'
 ---
 
-Every request to the Ragen AI API must include a valid Bearer token. You generate that token by creating an API key in your instance's Settings dashboard — the key is scoped to your organization and a default project, and it cannot be retrieved after it is first shown to you.
+Every request to the Ragen AI API must include a valid Bearer token. You generate that token by creating an API key in your instance's Settings dashboard. The key is scoped to your organization and to what it may read — one assistant, or the knowledge base — and it cannot be retrieved after it is first shown to you.
 
 ## Create an API key
 
@@ -15,7 +15,10 @@ Follow these steps inside your Ragen instance to generate a new key:
     Log in to your Ragen instance, then navigate to **Settings → API Keys**.
   </Step>
   <Step title="Create a new key">
-    Click **Create API Key**. Give the key a descriptive name and select the **project** (assistant) it should access by default.
+    Click **Create API Key** and give the key a descriptive name.
+  </Step>
+  <Step title="Choose what the key can reach">
+    Pick a **scope**. **The whole knowledge base** — the default — lets the key answer from the documents that belong to no assistant. **One assistant** binds the key to a single assistant, and the key is then refused for any other. The choice is made here and cannot be changed afterwards; to move a key to a different assistant, create a new one.
   </Step>
   <Step title="Configure optional settings">
     Enable **Debug mode** if you want API conversations saved as threads visible in the **API threads** tab. This is useful during development but should be disabled for production keys handling sensitive queries.
@@ -70,14 +73,27 @@ const ragen = new Ragen({
 });
 ```
 
-## API key scope
+## What a key can reach
 
-An API key is bound to:
+An API key is bound to **one organization** — every operation acts on resources inside it, and a key can never be promoted to another organization.
 
-- **One organization** — all operations act on resources within that organization.
-- **One default project** (`assistantId`) — chat completions use this project unless you pass a different `assistantId` per call.
+Within that organization, the scope you chose when creating the key decides what it reads. **It is a boundary, not a default**: a request that disagrees with it is refused rather than obliged.
 
-Keys do not grant cross-organization access, and they cannot be promoted to a different organization after creation.
+| Key scope             | `assistant_id` in the request | Result                                           |
+|-----------------------|-------------------------------|--------------------------------------------------|
+| **One assistant**     | omitted                       | answers for that assistant                       |
+| **One assistant**     | the same assistant            | answers for that assistant                       |
+| **One assistant**     | any other assistant           | `403`                                            |
+| **The knowledge base**| omitted                       | answers from documents that belong to no assistant |
+| **The knowledge base**| any assistant                 | `403`                                            |
+
+Omitting `assistant_id` is the normal case, and it is what makes Ragen callable from clients that speak the OpenAI format, which has no field for it.
+
+The scope narrows more than the answer. A key bound to one assistant lists only that assistant from `GET /v1/assistants`, sees only its files from `GET /v1/files`, and cannot create or delete an assistant at all — including the one it is bound to, since deleting it would revoke the key's own context. A knowledge-base key sees every assistant its organization owns, and the files that belong to none of them.
+
+<Note>
+  A key whose assistant is later deleted is refused rather than widened: it does not fall back to the knowledge base. Create a new key.
+</Note>
 
 ## Debug mode
 

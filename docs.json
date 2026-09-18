@@ -97,7 +97,8 @@
               "api-reference/files",
               "api-reference/assistants",
               "api-reference/threads",
-              "api-reference/search"
+              "api-reference/search",
+              "api-reference/models"
             ]
           },
           {

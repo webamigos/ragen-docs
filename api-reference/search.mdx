@@ -24,8 +24,17 @@ Authorization: Bearer YOUR_API_KEY
 
 ## Request parameters
 
-<ParamField body="assistant_id" type="string" required>
-  The assistant (project) ID to search against. Use `GET /v1/assistants` to find available IDs, or check **Settings → Assistant settings** in the dashboard.
+<Note>
+  **The API key decides which assistant, and this field has to agree with it.**
+  A key created for one assistant answers for that one whether or not you send
+  `assistant_id`; a key scoped to the knowledge base answers from the documents
+  that belong to no assistant, and rejects a request naming any assistant with
+  `403`. Omitting the field is the normal case. See
+  [Authentication](/api-reference/authentication#what-a-key-can-reach).
+</Note>
+
+<ParamField body="assistant_id" type="string">
+  The assistant (project) ID to search against. Optional — the API key already carries a scope, and this field must agree with it. A knowledge-base key searches the documents that belong to no assistant. Use `GET /v1/assistants` to find available IDs, or check **Settings → Assistant settings** in the dashboard.
 </ParamField>
 
 <ParamField body="query" type="string" required>

@@ -24,12 +24,16 @@ A connection with no `Authorization` header, or one that isn't `Bearer`-prefixed
 
 ## Available tools
 
+<Note>
+  **Omit `assistant_id` unless you have one.** The API key carries a scope: a key created for one assistant answers for it without being told, and a key scoped to the whole knowledge base rejects a request naming any assistant with `403`. `ragen_list_assistants` shows what the key you connected with can reach. See [Authentication](/api-reference/authentication#what-a-key-can-reach).
+</Note>
+
 ### `ragen_chat`
 
 Send a message to a Ragen assistant and receive its answer.
 
-<ParamField path="assistant_id" type="string" required>
-  The ID of the assistant (project) to send the message to. Use `ragen_list_assistants` to discover available IDs.
+<ParamField path="assistant_id" type="string">
+  The ID of the assistant (project) to send the message to. Optional — the key decides by itself, and naming an assistant it is not scoped to is refused. Use `ragen_list_assistants` to see what this key can reach.
 </ParamField>
 
 <ParamField path="message" type="string" required>
@@ -53,8 +57,10 @@ Send a message to a Ragen assistant and receive its answer.
 **Error response:**
 
 ```json
-{ "success": false, "status": 404, "error": "Assistant not found" }
+{ "success": false, "status": 403, "error": "This API key is scoped to a different assistant than 'asst-abc123'" }
 ```
+
+A `403` means the key and the request disagree about the assistant — either you named one the key is not scoped to, or you named one at all on a knowledge-base key. A `404` still means the assistant does not exist for this organization.
 
 <Note>
   `ragen_chat` is always non-streaming. An MCP tool call returns a single result, so there is no mechanism to forward a partial answer token-by-token. If you need streaming responses, call the Chat API directly with `stream: true`.
@@ -140,6 +146,32 @@ For custom agents or any MCP-compatible SDK, use Streamable HTTP transport and s
     Send a question to a specific assistant and receive a complete answer in one call.
   </Card>
   <Card title="ragen_list_assistants" icon="list">
-    Discover available assistants scoped to your API key's organisation.
+    Discover the assistants your API key can reach.
   </Card>
 </CardGroup>
+
+## Self-hosting the MCP server
+
+If you run Ragen yourself, the MCP server is a separate service — a thin one. It owns no data and holds no credentials: every tool call forwards the caller's own API key to the Ragen API, which does the authentication, the retrieval and the rate limiting. That is why it configures in four variables.
+
+Build it from the repository's `apps/mcp/Dockerfile`, whose build context is the repository root, and run `node dist/index.js`. It listens for Streamable HTTP on `/mcp`.
+
+### Environment variables
+
+| Variable | Required | Default | What it does |
+|---|---|---|---|
+| `TARGET_ENV` | **yes** | — | `local`, `staging` or `production`. Deployed instances must set it; see the warning below. |
+| `RAGEN_API_URL` | **yes when deployed** | `http://localhost:3001` | Where the Ragen API answers. On a platform with private networking, use the internal address. |
+| `PORT` | no | `3300` | The port the server listens on. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | no | — | Enables tracing. Without it, telemetry is a no-op. |
+| `OTEL_SERVICE_NAME` | no | — | The service name in traces. |
+
+There is nothing else — **no database, no Redis, no API key of its own**. A key belongs to whoever is calling, arrives per request, and is never stored.
+
+<Warning>
+  `TARGET_ENV` is what makes `RAGEN_API_URL` required. A deployment that leaves it unset would read as `local`, accept the localhost fallback, boot cleanly, and then fail every tool call with a connection error. Recent versions refuse to start instead — if yours boots without it, set it anyway and check `RAGEN_API_URL` really points at your API.
+</Warning>
+
+### Checking it works
+
+The server answers MCP over Streamable HTTP, so the quickest end-to-end check is a real client: point Claude Desktop or Cursor at `$RAGEN_MCP_URL/mcp` with a Bearer key and call `ragen_list_assistants`. If the key is valid and the API is reachable, it returns the assistants that key can see. A connection error there almost always means `RAGEN_API_URL` is wrong or unreachable from the container, rather than anything about MCP.
