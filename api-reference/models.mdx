@@ -1,0 +1,90 @@
+---
+title: 'Models API — List the Models a Ragen Instance Serves'
+sidebarTitle: 'Models'
+description: 'GET /v1/models — List the models your organization can use, in the OpenAI format, so an OpenAI-compatible client can fill its model picker.'
+---
+
+The Models endpoint lists the models your organization can actually use, in the shape OpenAI clients expect from `client.models.list()`. Its purpose is narrow and worth stating: it exists so a tool that speaks the OpenAI format — n8n, the OpenAI SDKs, anything pointed at a custom base URL — can populate its model list instead of showing an error where that list should be.
+
+<Note>
+  Every model this endpoint returns is one your next request can actually use. It is the intersection of three things: the model catalogue, the models your deployment holds credentials and a route for, and the per-organization allowlist an administrator may have set. A model missing from the list is missing for one of those reasons.
+</Note>
+
+## Endpoint
+
+```
+GET /v1/models
+GET /v1/models/{id}
+```
+
+**Authentication:**
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+The key's assistant scope does not narrow this list. A scope says which documents a key answers from, and models are not assistants — see [Authentication](/api-reference/authentication#what-a-key-can-reach).
+
+## Response
+
+```json
+{
+  "object": "list",
+  "data": [
+    { "id": "gemini-3-flash-preview", "object": "model", "created": 0, "owned_by": "google" },
+    { "id": "gpt-5.4", "object": "model", "created": 0, "owned_by": "openai" }
+  ]
+}
+```
+
+<ResponseField name="id" type="string">
+  The model ID. Pass this as `model` to [Chat Completions](/api-reference/chat-completions) or [Chat](/api-reference/chat).
+</ResponseField>
+
+<ResponseField name="owned_by" type="string">
+  The vendor behind the model — `openai`, `google`, `anthropic` or `mistral` — rather than `ragen`, so the value tells you something you did not already know.
+</ResponseField>
+
+<ResponseField name="created" type="integer">
+  Always `0`. The field is required by the OpenAI `Model` type and Ragen does not record model publication dates. A constant borrowed from OpenAI's own response would look like a date and be wrong; `0` is visibly not one.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-ragen-instance.com/v1/models \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```typescript OpenAI SDK
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: process.env.RAGEN_API_KEY,
+  baseURL: 'https://your-ragen-instance.com/v1',
+});
+
+const models = await client.models.list();
+for (const model of models.data) {
+  console.log(model.id, model.owned_by);
+}
+```
+
+</CodeGroup>
+
+## Retrieve one model
+
+`GET /v1/models/{id}` returns a single model object, or `404` if the model does not exist **or** is not one your organization is allowed to use. The two cases answer the same way on purpose: an allowlist is another tier's configuration, and distinguishing them would confirm which model IDs are real.
+
+## Errors
+
+| Status | Type                    | Meaning                                              |
+|--------|-------------------------|------------------------------------------------------|
+| `401`  | `authentication_error`  | Missing or invalid API key                           |
+| `404`  | `not_found_error`       | No such model, or not on your organization's allowlist |
+
+## An empty list
+
+If `data` comes back empty, an administrator has restricted your organization to models this deployment cannot serve. That is a configuration answer rather than an error, which is why it is an empty list and not a failure — check the organization's allowed models against the instance's configured providers.

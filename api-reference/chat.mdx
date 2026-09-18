@@ -26,8 +26,17 @@ API keys are scoped to your organization. Create and manage keys in the Ragen da
 
 ## Request parameters
 
-<ParamField body="assistant_id" type="string" required>
-  The assistant (project) ID to query. Find it in the dashboard URL when viewing a project (`…/projects/<assistant_id>`), via `GET /v1/assistants`, or under **Settings → Assistant settings**.
+<Note>
+  **The API key decides which assistant, and this field has to agree with it.**
+  A key created for one assistant answers for that one whether or not you send
+  `assistant_id`; a key scoped to the knowledge base answers from the documents
+  that belong to no assistant, and rejects a request naming any assistant with
+  `403`. Omitting the field is the normal case. See
+  [Authentication](/api-reference/authentication#what-a-key-can-reach).
+</Note>
+
+<ParamField body="assistant_id" type="string">
+  The assistant (project) ID to query. Optional — the API key already carries a scope, and this field must agree with it. Find an ID in the dashboard URL when viewing a project (`…/projects/<assistant_id>`), via `GET /v1/assistants`, or under **Settings → Assistant settings**.
 </ParamField>
 
 <ParamField body="content" type="string" required>
@@ -237,7 +246,7 @@ When you call `POST /v1/chat`, Ragen runs a five-step pipeline:
     Your API key is validated and the organization is resolved from it.
   </Step>
   <Step title="Assistant resolution">
-    The `assistant_id` is matched to a project within your organization.
+    The assistant comes from the API key's scope. A key bound to one assistant resolves to it; a knowledge-base key resolves to no assistant, and retrieval runs against the documents that belong to none. An `assistant_id` in the request must agree with that, or the call is refused with `403`.
   </Step>
   <Step title="RAG retrieval">
     Relevant document chunks are retrieved from the assistant's knowledge base via vector search.

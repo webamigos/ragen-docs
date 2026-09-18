@@ -23,7 +23,7 @@ DELETE /v1/assistants/{id}
 Authorization: Bearer YOUR_API_KEY
 ```
 
-Assistants are scoped to the **organization** the API key belongs to, not just the key's default project. `GET /v1/assistants` returns every assistant your organization owns.
+Assistants are scoped to the API key. A key scoped to **the knowledge base** — the default — sees every assistant its organization owns, which is what an OpenAI client expects from `client.assistants.list()`. A key created for **one assistant** sees, and can change, that one only: any other is refused with `403`, and such a key cannot create or delete an assistant at all. See [Authentication](/api-reference/authentication#what-a-key-can-reach).
 
 ## OpenAI field mapping
 
@@ -69,7 +69,7 @@ Ragen maps OpenAI assistant fields to Ragen project concepts:
 
 ## List, retrieve, and modify
 
-`GET /v1/assistants` returns every assistant in your organization. `GET /v1/assistants/{id}` retrieves a single assistant. Both `POST /v1/assistants/{id}` and `PATCH /v1/assistants/{id}` update an existing assistant — every field is optional, and they accept the same fields as create.
+`GET /v1/assistants` returns every assistant the key can reach — the whole organization for a knowledge-base key, or the single bound one. `GET /v1/assistants/{id}` retrieves a single assistant. Both `POST /v1/assistants/{id}` and `PATCH /v1/assistants/{id}` update an existing assistant — every field is optional, and they accept the same fields as create.
 
 ## Delete an assistant
 
@@ -79,7 +79,7 @@ Ragen maps OpenAI assistant fields to Ragen project concepts:
 { "id": "asst-abc123", "object": "assistant.deleted", "deleted": true }
 ```
 
-**Self-delete protection:** You cannot delete the assistant bound to the API key's own default project. Attempting it returns a `400` error:
+**Self-delete protection:** You cannot delete the assistant your API key is bound to — that would revoke the key's own context. Attempting it returns a `400` error. A key scoped to one assistant therefore deletes nothing at all: its own is refused here, and every other one is refused as out of scope with `403`.
 
 ```json
 {

@@ -4,7 +4,7 @@ sidebarTitle: 'Files'
 description: 'POST, GET, DELETE /v1/files — Upload documents to a Ragen project, poll for processing status, and manage your knowledge base files.'
 ---
 
-The Files API is an OpenAI-compatible interface for adding documents to your Ragen knowledge base and managing them over time. Files are scoped to the **project** the API key is bound to — every file you upload through the API lands in that project's knowledge base and becomes immediately available to the [Chat Completions](/api-reference/chat-completions) endpoint once processing completes.
+The Files API is an OpenAI-compatible interface for adding documents to your Ragen knowledge base and managing them over time. Files are scoped to the API key, the same way its answers are: a key bound to **one assistant** lists and uploads that assistant's files, and a key scoped to **the knowledge base** works with the files that belong to no assistant. Either way a file becomes available to the [Chat Completions](/api-reference/chat-completions) endpoint once processing completes. See [Authentication](/api-reference/authentication#what-a-key-can-reach).
 
 ## Endpoints
 
@@ -64,7 +64,7 @@ Poll `GET /v1/files/{id}` until the file reaches a terminal status:
 
 ## List files
 
-`GET /v1/files` — returns a paginated list of files in your project.
+`GET /v1/files` — returns a paginated list of the files the key can reach.
 
 <ParamField query="limit" type="integer" default="20">
   Number of files to return per page. Between 1 and 100.
@@ -82,7 +82,7 @@ Returns `{ "object": "list", "data": [...] }` with OpenAI `file` objects.
 
 ## Retrieve a file
 
-`GET /v1/files/{id}` — returns the full OpenAI `file` object for a single file, or `404` if it doesn't exist in your project.
+`GET /v1/files/{id}` — returns the full OpenAI `file` object for a single file, or `404` if the file does not exist or falls outside what the key can reach.
 
 ## Delete a file
 
@@ -183,7 +183,7 @@ Returns `{ "object": "list", "data": [...] }` with OpenAI `file` objects.
 |---|---|---|
 | `400` | `invalid_request_error` | Missing `file` field, unsupported `purpose`, or validation failure |
 | `401` | `authentication_error` | Missing or invalid API key |
-| `404` | `not_found_error` | File doesn't exist or isn't in the caller's project |
+| `404` | `not_found_error` | File doesn't exist, or is outside what the key can reach |
 | `413` | `invalid_request_error` | File exceeds the per-file, organization, or project storage limit |
 | `429` | `rate_limit_error` | Upload rate limit exceeded |
 | `502` | `api_error` | Storage or background worker failure during upload |

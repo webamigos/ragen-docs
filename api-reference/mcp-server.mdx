@@ -30,13 +30,17 @@ Authorization: Bearer YOUR_API_KEY
 
 The Ragen MCP Server exposes two tools today.
 
+<Note>
+  **Omit `assistant_id` unless you have one.** The API key carries a scope: a key created for one assistant answers for it without being told, and a key scoped to the whole knowledge base rejects a request naming any assistant with `403`. `ragen_list_assistants` shows what the key you connected with can reach. See [Authentication](/api-reference/authentication#what-a-key-can-reach).
+</Note>
+
 <Accordion title="ragen_chat — Send a message to an assistant">
   Send a message to a Ragen assistant and receive a grounded answer drawn from its knowledge base. This is the MCP equivalent of `POST /v1/chat`.
 
   **Parameters**
 
-  <ParamField body="assistant_id" type="string" required>
-    The ID of the Ragen assistant (project) to send the message to. Use `ragen_list_assistants` to discover available IDs.
+  <ParamField body="assistant_id" type="string">
+    The ID of the Ragen assistant (project) to send the message to. Optional — the key decides by itself, and naming an assistant it is not scoped to is refused. Use `ragen_list_assistants` to see what this key can reach.
   </ParamField>
 
   <ParamField body="message" type="string" required>
@@ -67,6 +71,16 @@ The Ragen MCP Server exposes two tools today.
   ```json
   {
     "success": false,
+    "status": 403,
+    "error": "This API key is scoped to a different assistant than 'asst-abc123'"
+  }
+  ```
+
+  A `403` means the key and the request disagree — you named an assistant the key is not scoped to, or named one at all on a knowledge-base key. A `404` is the other case, an assistant that does not exist for this organization:
+
+  ```json
+  {
+    "success": false,
     "status": 404,
     "error": "Assistant not found"
   }
@@ -78,7 +92,7 @@ The Ragen MCP Server exposes two tools today.
 </Accordion>
 
 <Accordion title="ragen_list_assistants — List available assistants">
-  List all assistants available to your API key's organization. Use this to discover assistant IDs before calling `ragen_chat`.
+  List the assistants your API key can reach. A knowledge-base key sees every assistant its organization owns; a key created for one assistant sees that one. Use this to discover assistant IDs before calling `ragen_chat` — or, if exactly one comes back, to confirm you can omit the parameter.
 
   **Parameters**
 
@@ -108,7 +122,7 @@ The Ragen MCP Server exposes two tools today.
   }
   ```
 
-  Scoping is automatic: results are limited to assistants owned by the API key's organization. There is no separate access configuration required.
+  Scoping is automatic and follows the key: the organization's assistants for a knowledge-base key, the single bound one for an assistant-scoped key. There is no separate access configuration required.
 </Accordion>
 
 ---

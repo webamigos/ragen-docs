@@ -44,7 +44,7 @@ Authorization: Bearer YOUR_API_KEY
 </ParamField>
 
 <ParamField body="assistant_id" type="string">
-  **Ragen extension.** Bind the thread to a specific assistant using its `asst-<projectId>` ID. Defaults to the API key's bound project.
+  **Ragen extension.** Bind the thread to a specific assistant using its `asst-<projectId>` ID. Optional, and it must agree with the key's scope: a key bound to one assistant refuses any other with `403`, and a knowledge-base key refuses the field entirely and opens the thread against the knowledge base. Omit it and the key decides. See [Authentication](/api-reference/authentication#what-a-key-can-reach).
 </ParamField>
 
 ### List threads
