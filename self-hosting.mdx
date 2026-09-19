@@ -29,14 +29,14 @@ A GPU is only needed if you plan to serve language models on your own hardware. 
     This starts Postgres, Qdrant, Redis, and Docling in Docker. The applications themselves run on the host with hot reload.
 
     <Note>
-      If you only want to query existing knowledge bases and do not need document ingestion, use the lighter stack instead — it omits Redis, so there is no queue for the worker to drain:
-
-      ```bash
-      npm run ragen:up:app    # Postgres and Qdrant only
-      ```
-
       To run every application in containers as well, `npm run ragen:up:everything` builds and starts the web app, API, worker, and admin panel alongside all services.
     </Note>
+
+    <Warning>
+      **`npm run ragen:up:app` is not a smaller way to run Ragen any more.** It brings up Postgres and Qdrant without Redis, which was a working query-only stack while Temporal was the default runtime and Redis was merely a cache. Under `bullmq` it is not: `apps/web` and `apps/api` validate `REDIS_URL` at boot, whether or not you ever upload a document, because a producer that cannot reach the queue cannot enqueue at all. The API exits naming the variable and the web app serves its setup page.
+
+      There is no supported configuration that drops Redis. Use `ragen:up:full`.
+    </Warning>
   </Step>
 
   <Step title="Install dependencies">
