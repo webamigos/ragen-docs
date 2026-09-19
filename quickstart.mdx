@@ -11,7 +11,7 @@ Ragen AI is self-hosted, so getting started means getting an instance running on
 Before you begin, make sure you have the following in place:
 
 - **Node.js 24.x** — the installer checks your version before it clones anything. Running on an older version produces a tree that fails later, far from the actual cause.
-- **Docker and Docker Compose** — both must be running. The backing services (Postgres, Qdrant, Temporal, Docling, Redis) all run in containers.
+- **Docker and Docker Compose** — both must be running. The backing services (Postgres, Qdrant, Redis, Docling) all run in containers.
 - **~8 GB of RAM** available to Docker. Document parsing is the hungry part; you can drop Docling later if you need to trim memory.
 - **An LLM API key** — OpenAI or Anthropic to start chatting immediately. You can also point Ragen at models on your own hardware, but that is separate deployment work.
 
@@ -65,7 +65,7 @@ No GPU is required unless you choose to serve models locally.
       <Tab title="Worker (for document uploads)">
         ```bash
         cd my-ragen-app
-        npm run worker:dev   # document ingestion via Temporal
+        npm run worker:dev   # document ingestion, draining the job queue
         ```
       </Tab>
       <Tab title="Admin panel (optional)">

@@ -232,7 +232,7 @@ Defaults for each job. All optional: each has a fallback in code, and apps/worke
 
 ### Temporal
 
-Document ingest runs as Temporal workflows ([ADR-26](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/26-absorb-ragen-worker-into-monorepo.md)). Optional here because apps/web and apps/api fall back to localhost:7233, and required outright in apps/worker, which is the process that runs them. `TEMPORAL_CERT` and `TEMPORAL_KEY` are deliberately absent: they are declared in the schema but nothing reads them yet.
+Read only when `WORKER_RUNTIME` selects Temporal, which is not the default and is not in the compose file ([ADR-44](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/44-bullmq-is-the-worker-runtime.md)) — under BullMQ nothing here is consulted at all. Optional in this listing because requiredness follows the runtime: the seam above makes `TEMPORAL_SERVER_ADDRESS` mandatory once Temporal is chosen. `TEMPORAL_CERT` and `TEMPORAL_KEY` are deliberately absent: they are declared in the schema but nothing reads them yet.
 
 | Variable                  | Config field |          |
 | ------------------------- | ------------ | -------- |
@@ -241,7 +241,7 @@ Document ingest runs as Temporal workflows ([ADR-26](https://github.com/webamigo
 
 ### Redis
 
-Required by apps/worker, which caches organization settings through it. Genuinely optional in apps/web, where the absence is a real mode rather than a degraded one — the settings cache computes values directly, and the public chatbot rate limiter fails open, so rate limiting is off rather than enforced with a fallback limit.
+The job queue on the default runtime ([ADR-44](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/44-bullmq-is-the-worker-runtime.md)), and an organization-settings cache besides. apps/worker requires it on either runtime; under BullMQ apps/web and apps/api need it too, because a producer that cannot reach Redis cannot enqueue a job — so an upload fails rather than being processed later. Optional in this listing only because requiredness follows the runtime, which the seam above states. It must run `maxmemory-policy noeviction`: an evicting instance drops queue keys and the queued jobs go with them.
 
 | Variable    | Config field |          |
 | ----------- | ------------ | -------- |

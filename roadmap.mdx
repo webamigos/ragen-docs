@@ -8,15 +8,14 @@ Ragen is actively developed, and this page shows the shape of what is coming —
 
 ## Choosing Your Own Infrastructure
 
-Three parts of Ragen are things you should be able to pick rather than inherit: what runs background jobs, what stores vectors, and what parses documents. Today each is a single choice baked into the stack. The next set of changes puts a seam in front of each one and adds a second implementation behind it.
+Three parts of Ragen are things you should be able to pick rather than inherit: what runs background jobs, what stores vectors, and what parses documents. The first has shipped — `WORKER_RUNTIME` picks between BullMQ and Temporal, and BullMQ is now the default, which is what took two containers and a gRPC dependency out of a standard install. The other two get the same treatment: a seam in front, a second implementation behind it.
 
 <Note>
-  Nothing is being taken away. Temporal stays a supported runtime, Qdrant stays the default vector store, and Docling stays the default parser. If you change nothing, nothing changes.
+  Nothing is being taken away. Qdrant stays the default vector store and Docling stays the default parser, and Temporal remains a supported runtime for anyone who selects it. If you change nothing, nothing changes.
 </Note>
 
 | Concern | Today | Also Available | What the Alternative Costs You |
 |---|---|---|---|
-| Background jobs | Temporal | BullMQ on Redis | A crashed job re-runs from the start instead of resuming |
 | Vector store | Qdrant | `pgvector`, in the database you already run | A shared failure domain, and different retrieval numbers |
 | Document parsing | Docling (self-hosted) | Mistral Document AI (hosted) | **Your documents leave your deployment** |
 

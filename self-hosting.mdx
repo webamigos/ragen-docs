@@ -26,10 +26,10 @@ A GPU is only needed if you plan to serve language models on your own hardware. 
     npm run ragen:up:full
     ```
 
-    This starts Postgres, Qdrant, Temporal, Docling, and Redis in Docker. The applications themselves run on the host with hot reload.
+    This starts Postgres, Qdrant, Redis, and Docling in Docker. The applications themselves run on the host with hot reload.
 
     <Note>
-      If you only want to query existing knowledge bases and do not need document ingestion, use the lighter stack instead — it omits Temporal, so there is nothing for the worker to connect to:
+      If you only want to query existing knowledge bases and do not need document ingestion, use the lighter stack instead — it omits Redis, so there is no queue for the worker to drain:
 
       ```bash
       npm run ragen:up:app    # Postgres and Qdrant only
@@ -103,7 +103,7 @@ A GPU is only needed if you plan to serve language models on your own hardware. 
     </Warning>
 
     <Note>
-      `apps/worker` is what makes an uploaded document searchable. It is not in `docker-compose.yml` — it runs on the host and connects to Temporal. Without it, uploads succeed and then sit unparsed indefinitely. The worker validates its own environment at boot and exits with the missing variable named rather than starting in a broken state.
+      `apps/worker` is what makes an uploaded document searchable. It is not in `docker-compose.yml` — it runs on the host and drains the job queues in Redis. Without it, uploads succeed and then sit unparsed indefinitely. The worker validates its own environment at boot and exits with the missing variable named rather than starting in a broken state.
     </Note>
   </Step>
 </Steps>
@@ -116,13 +116,40 @@ Every service has a specific role in the stack. Removing one affects only the ca
 |---------|------------|
 | Postgres | Everything — the primary application database |
 | Qdrant | Vector search and document retrieval |
-| Temporal | Background jobs, when `WORKER_RUNTIME` is `temporal` (the default). Under `bullmq` it is not used at all — see [Background jobs](/configuration/background-jobs) |
+| Redis | Background jobs — it is the queue. Required by the worker, and by the web app and API, which enqueue into it |
 | Docling | Local document parsing and OCR |
-| Redis | Always required by the worker; also required by the web app and API under `WORKER_RUNTIME=bullmq` |
 | Presidio | Personal-data detection — optional, behind the `pii` Compose profile |
 
 <Note>
-  **Redis** deserves a careful reading of "optional," and the answer now depends on `WORKER_RUNTIME`. `apps/worker` requires `REDIS_URL` on either runtime and refuses to start without it — it caches organization settings there. Under `WORKER_RUNTIME=temporal`, `apps/web` treats its absence as a real mode rather than a degraded one: settings are computed directly and the public chatbot rate limiter fails open, so rate limiting is disabled rather than enforced, and `apps/api` does not read Redis at all — its rate limiter is in-memory. Under `WORKER_RUNTIME=bullmq` both of them need it, because that is where the queue lives: an application that cannot reach Redis cannot enqueue a job, so an upload fails instead of being processed later.
+  **Redis is not optional on the default runtime**, and it is the variable most often missed. `WORKER_RUNTIME` defaults to `bullmq`, which puts the job queues in Redis: the worker drains them, and `apps/web` and `apps/api` write to them. An application that cannot reach Redis cannot enqueue a job, so an upload fails outright rather than being processed later. The Redis it points at must run `maxmemory-policy noeviction` — an evicting instance drops queue keys and the jobs go with them, which the worker refuses at boot rather than discovering in production. See [Background jobs](/configuration/background-jobs).
+</Note>
+
+## Published container images
+
+Building four images on every install is work nobody needs to repeat. Each
+release publishes them to GitHub Container Registry, amd64:
+
+```bash
+docker pull ghcr.io/webamigos/ragen-web:latest
+docker pull ghcr.io/webamigos/ragen-api:latest
+docker pull ghcr.io/webamigos/ragen-worker:latest
+docker pull ghcr.io/webamigos/ragen-admin:latest
+docker pull ghcr.io/webamigos/ragen-mcp:latest
+```
+
+Every image carries four tags: the full version (`v1.4.2`), the minor series
+(`1.4`), the exact commit (`sha-…`) and `latest`. **Pin production to the `sha-`
+tag** — `latest` moves, and so does the minor series.
+
+The images hold no per-install configuration. Everything they need comes from
+the environment at runtime, which is what makes one published image correct for
+every install; the [configuration reference](/configuration/environment-reference)
+lists what to supply.
+
+<Note>
+  `npm run ragen:up:everything` still builds from source, which is what you
+  want while developing against a checkout. The published images are for
+  deployments that are not tracking `main`.
 </Note>
 
 ## Feature flags

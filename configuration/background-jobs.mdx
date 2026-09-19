@@ -14,8 +14,8 @@ Which engine carries those jobs is a deployment choice.
 
 | Value | What it needs | Notes |
 |---|---|---|
-| `temporal` | A Temporal server at `TEMPORAL_SERVER_ADDRESS` | The default when `WORKER_RUNTIME` is unset. Two extra containers. |
-| `bullmq` | Redis at `REDIS_URL` | Lighter: no gRPC, no second database, and the queues are readable with `redis-cli`. |
+| `bullmq` | Redis at `REDIS_URL` | **The default when `WORKER_RUNTIME` is unset**, and the only runtime the shipped images and Compose file contain. |
+| `temporal` | A Temporal server at `TEMPORAL_SERVER_ADDRESS`, which you run yourself | Durable execution: a crashed job resumes rather than re-running. Not in the Compose file, and not in the published worker image — see [Durable execution](#durable-execution) below. |
 
 <Note>
   The worker already requires `REDIS_URL` on either runtime — it caches organization settings there. What `bullmq` adds is that the **web application and API need it too**: a producer that cannot reach Redis cannot enqueue a job at all. The worker also refuses to start against a Redis configured to evict keys, because an evicting instance can drop queued jobs silently, which looks exactly like work that was never submitted. Set `maxmemory-policy noeviction`.
@@ -62,6 +62,31 @@ Read the last column first: at 10, half the batch spent eighteen seconds waiting
 3. Add worker replicas rather than raising the number indefinitely. `WORKER_CONCURRENCY` is per worker process, so three replicas at 20 give you 60 documents in flight.
 
 The two nightly maintenance jobs are pinned to one at a time regardless of this setting, across every replica, so they cannot overlap.
+
+## Durable execution
+
+BullMQ guarantees the *message*; Temporal guarantees the *program*. Nothing in
+Ragen replays, so on `bullmq` a worker that dies mid-ingest re-runs the whole
+job from the start rather than resuming at the step it reached. For the eight
+jobs Ragen runs — all linear chains, the longest capped at fifteen minutes —
+re-running is cheap, which is why it is the default.
+
+If resuming matters to you, `WORKER_RUNTIME=temporal` is still a supported
+choice. Two things about it are worth knowing before you plan around it:
+
+- **You run the server.** Temporal is not in `docker-compose.yml` and not in
+  the Helm chart. `TEMPORAL_SERVER_ADDRESS` has no fallback in a deployed
+  process, because a fallback that is right on a laptop is silent everywhere
+  else.
+- **It is not in the published worker image.** The adapter is a separate
+  package that the image deliberately omits, so selecting Temporal today means
+  building the worker from source rather than pulling
+  `ghcr.io/webamigos/ragen-worker`.
+
+Both runtimes run the same eight handlers and the same activities — there is no
+second pipeline — and a nightly job in the application repository runs the
+worker's integration suite against a real Temporal server, so "supported" means
+exercised rather than merely declared.
 
 ## Watching the queues
 
