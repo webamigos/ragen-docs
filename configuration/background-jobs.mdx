@@ -72,21 +72,39 @@ jobs Ragen runs — all linear chains, the longest capped at fifteen minutes —
 re-running is cheap, which is why it is the default.
 
 If resuming matters to you, `WORKER_RUNTIME=temporal` is still a supported
-choice. Two things about it are worth knowing before you plan around it:
+choice. It lives in
+[`webamigos/ragen-enterprise`](https://github.com/webamigos/ragen-enterprise) —
+Apache-2.0, like Ragen itself, and separate because the adapter costs every
+install that does not want it a gRPC dependency and six packages under a version
+lock. Three things are worth knowing before you plan around it:
 
 - **You run the server.** Temporal is not in `docker-compose.yml` and not in
   the Helm chart. `TEMPORAL_SERVER_ADDRESS` has no fallback in a deployed
   process, because a fallback that is right on a laptop is silent everywhere
   else.
-- **It is not in the published worker image.** The adapter is a separate
-  package that the image deliberately omits, so selecting Temporal today means
-  building the worker from source rather than pulling
-  `ghcr.io/webamigos/ragen-worker`.
+- **The worker is an image swap.** `ragen-enterprise` publishes a Dockerfile
+  that is `FROM ghcr.io/webamigos/ragen-worker` and adds the adapter and the
+  Temporal SDK. Run that instead of the OSS worker image. Setting
+  `WORKER_RUNTIME=temporal` on the unextended image is not enough: it starts,
+  logs the runtime it resolved, and exits saying the SDK is absent.
+- **The producers are a rebuild.** `web` and `api` enqueue, so they have to
+  speak the same engine — and the images published here register BullMQ alone.
+  There is no image to swap: `web` is a Next standalone build, which resolves
+  its imports at build time, so it cannot be layered the way the worker can.
+  Build both from source with `@ragenai/jobs-temporal` added, which is a
+  dependency and two lines per application.
+  [`docs/durable-execution.md`](https://github.com/webamigos/ragen-enterprise/blob/main/docs/durable-execution.md)
+  has the procedure. Skip it and the first upload fails with *no adapter
+  registered for `WORKER_RUNTIME="temporal"`* — loudly, which is better than a
+  queue nobody reads.
+
+The two nightly schedules are registered by scripts, and on Temporal those need
+the adapter too, so run them from the enterprise image rather than the OSS one.
 
 Both runtimes run the same eight handlers and the same activities — there is no
-second pipeline — and a nightly job in the application repository runs the
-worker's integration suite against a real Temporal server, so "supported" means
-exercised rather than merely declared.
+second pipeline — and `ragen-enterprise`'s CI runs Ragen's own worker
+integration suite against a real Temporal server, nightly and on every change,
+so "supported" means exercised rather than merely declared.
 
 ## Watching the queues
 

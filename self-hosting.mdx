@@ -147,6 +147,16 @@ every install; the [configuration reference](/configuration/environment-referenc
 lists what to supply.
 
 <Note>
+  **These five serve the default job runtime, and only that.** All of them are
+  BullMQ producers or consumers, which is what `WORKER_RUNTIME` defaults to. A
+  deployment that sets `WORKER_RUNTIME=temporal` cannot use `ragen-worker`,
+  `ragen-web` or `ragen-api` as published — the worker exits at boot and the
+  two producers throw on the first upload. See
+  [Durable execution](/configuration/background-jobs#durable-execution) for what
+  to run instead: the worker is an image swap, the producers are a rebuild.
+</Note>
+
+<Note>
   `npm run ragen:up:everything` still builds from source, which is what you
   want while developing against a checkout. The published images are for
   deployments that are not tracking `main`.
