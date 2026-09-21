@@ -49,6 +49,7 @@
               "configuration/models",
               "configuration/model-gateway",
               "configuration/storage",
+              "configuration/token-vault",
               "configuration/background-jobs",
               "configuration/open-models"
             ]

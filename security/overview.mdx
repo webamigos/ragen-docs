@@ -10,6 +10,8 @@ Ragen is self-hosted — your data never leaves your infrastructure unless you e
 
 All data lives wherever you install Ragen. Storage is not the complete picture, though: whether document *content* is transmitted to a third party during processing depends on how you configure the model backend.
 
+Credentials are the exception to "all data lives in Ragen's database": connector OAuth tokens and the secret half of every API key are held by the [token vault](/configuration/token-vault), a separate service, encrypted with AES-256-GCM. Ragen's own database keeps only metadata and a masked value, so a database dump exposes no usable credential.
+
 There is no telemetry channel to the vendor. OpenTelemetry support exists, but it is inert until you point `OTEL_EXPORTER_OTLP_ENDPOINT` at a collector you run yourself.
 
 ## What leaves your network
