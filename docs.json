@@ -57,6 +57,8 @@
             "group": "Integrations",
             "pages": [
               "integrations/mcp-connectors",
+              "integrations/adding-a-connector",
+              "integrations/build-a-connector",
               "integrations/mcp-server",
               "integrations/oauth"
             ]

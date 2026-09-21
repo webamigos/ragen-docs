@@ -1,0 +1,111 @@
+---
+title: 'Add an MCP Connector Without Deploying Ragen'
+sidebarTitle: 'Adding a connector'
+description: 'Add any MCP server to your Ragen installation from the admin panel — paste a URL, test it, grant it to the organisations that should have it. No code change, no migration, no release.'
+---
+
+The list of services your installation can connect to is **data, not code**. A platform admin adds a row in the admin panel and the connector appears for the organisations you grant it to. There is no code change, no database migration and no release of Ragen.
+
+That matters in two situations the old behaviour could not serve at all:
+
+- A service you use ships an MCP server, but Ragen has no built-in connector for it. You add it yourself.
+- Your company runs its **own** MCP server, on your own network. Previously this was impossible at any price without forking Ragen.
+
+<Note>
+  Only a **platform admin** can add a connector. The catalogue is
+  installation-wide: an organisation admin can use what you grant them, but
+  cannot point Ragen at a server of their choosing.
+</Note>
+
+## Add the connector
+
+<Steps>
+  <Step title="Open the catalogue">
+    In the admin panel, go to **MCP Catalogue**. You'll see every connector the installation offers, including the built-in ones.
+  </Step>
+  <Step title="Create an entry">
+    Click **Add a connector** and fill in:
+
+    | Field | Notes |
+    |---|---|
+    | **Slug** | Lowercase letters, digits and hyphens — `notion`, `open-meteo`. Permanent: it keys the stored credentials, so it cannot be changed later. |
+    | **Name** | What users see in **Settings → Connectors**. |
+    | **Description** | One line. Shown on the connector card. |
+    | **MCP server URL** | The full endpoint, **including the `/mcp` path**. See below. |
+    | **Authentication** | `SERVER_SIDE`, `API_KEY_BEARER` or `EXTERNAL_MCP`. See the table below. |
+    | **Icon** | Two inputs: a [Lucide](https://lucide.dev) icon name such as `plug`, and optionally a path to a brand image like `/assets/connectors/notion.svg`. The image wins where both are set. |
+    | **System prompt** | Optional. Appended to the assistant's instructions when this connector is active — useful for telling the model how to use the tools. |
+  </Step>
+  <Step title="Test the connection">
+    Click **Test connection**. Ragen opens an MCP session against the URL and lists the tool names it finds.
+
+    This is the only way to tell a working endpoint from a typo before a user does. Don't skip it.
+  </Step>
+  <Step title="Save">
+    The connector is now in the catalogue and enabled.
+  </Step>
+  <Step title="Grant it to organisations">
+    Go to **Connectors** in the admin panel. If an organisation's allowlist is empty it gets everything; otherwise add the new slug to the organisations that should have it.
+  </Step>
+</Steps>
+
+Users then connect it themselves in **Settings → Connectors**, exactly like a built-in.
+
+## Choosing the authentication type
+
+| Type | The user supplies | Use it when |
+|---|---|---|
+| `SERVER_SIDE` | Nothing | The MCP server needs no credential from the user — public data, or the server holds one key of its own. The connector goes straight to **Connected**. |
+| `API_KEY_BEARER` | Their own API key | Each user has their own key for the upstream service. Ragen stores it in the credential store and sends it as a bearer token. |
+| `EXTERNAL_MCP` | Nothing (OAuth) | The MCP server speaks OAuth. You supply a client ID and secret, which are stored in the credential store rather than the database. |
+
+## Two things that catch people
+
+### The URL must end in `/mcp`
+
+Give the entry `https://mcp.example.com` and the connector will be stored with one address and dialled at another, so no tools load.
+
+**Test connection catches this** — it probes exactly the URL you typed, and an MCP server answers only on its `/mcp` path. This is the main reason to use the button.
+
+### `localhost` is refused, and the checkbox does not change that
+
+Ragen checks every catalogue URL against an SSRF policy, at save time, at connect time, and on every tool call.
+
+Ticking **Allow a private address** widens that policy to RFC 1918 space — `10.x`, `172.16–31.x`, `192.168.x` — and **to nothing else**. Loopback stays refused with the box ticked, on purpose: cloud metadata services live on link-local addresses, and a flag that admitted everything the policy was written for would be a rename of "off".
+
+So `http://localhost:9005/mcp` cannot be saved. The refusal reads *"That address is private or reserved"*, which sounds like the checkbox is the answer. It is not. Use instead:
+
+- your host's LAN address — `http://192.168.1.50:9005/mcp`, box ticked;
+- a container name, if Ragen and the connector share a Docker network — that resolves to `172.x`, box ticked;
+- a public hostname over HTTPS in production, box unticked.
+
+<Warning>
+  A connector that carries a credential — `API_KEY_BEARER` or `EXTERNAL_MCP` —
+  requires **HTTPS**, with no exception. A user's own API key or an OAuth token
+  would otherwise travel in clear text. Plain `http://` is available only for
+  `SERVER_SIDE` connectors, which carry no credential.
+</Warning>
+
+## Turning a connector off
+
+Set an entry to disabled and it disappears from every organisation's gallery and accepts no new connections — including organisations you granted it to. Connections people already have stop loading its tools.
+
+This is the switch to reach for when a service is misbehaving; it takes effect immediately and needs no deploy.
+
+## Built-in connectors
+
+The connectors Ragen ships with are ordinary catalogue rows and appear in the same list, marked **Built-in**. Two differences:
+
+- You can enable or disable them, but not edit or delete them. Their shape is code.
+- Their server URL comes from environment variables (`MCP_GOOGLE_SERVER_URL` and siblings) rather than the row, so a database copied between environments cannot silently repoint them at the wrong host.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Build your own connector" icon="wrench" href="/integrations/build-a-connector">
+    Scaffold an MCP server Ragen can connect to with one command.
+  </Card>
+  <Card title="Using connectors" icon="plug" href="/integrations/mcp-connectors">
+    What connectors do, and how users connect them.
+  </Card>
+</CardGroup>

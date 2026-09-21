@@ -8,6 +8,8 @@ MCP connectors let you bring live data from external services directly into your
 
 ## Available connectors
 
+Ragen ships with these:
+
 | Connector | What it provides |
 |---|---|
 | Google Drive | Import and sync documents from folders into your knowledge base |
@@ -18,6 +20,19 @@ MCP connectors let you bring live data from external services directly into your
 | ClickUp | Retrieve task and project data from your workspace |
 | Slack | Search message history, threads, and channel content |
 
+**This list is not fixed.** Which connectors your installation offers is data a platform admin edits, not code — so any MCP server can be added, including one running on your own network, without a code change or a release of Ragen.
+
+<CardGroup cols={2}>
+  <Card title="Add a connector" icon="plus" href="/integrations/adding-a-connector">
+    Paste a URL in the admin panel, test it, grant it to organisations.
+  </Card>
+  <Card title="Build a connector" icon="wrench" href="/integrations/build-a-connector">
+    No MCP server for the service you want? Scaffold one with a command.
+  </Card>
+</CardGroup>
+
+So what you see in **Settings → Connectors** depends on your installation: the built-ins above, minus anything switched off, plus anything added, filtered by what your organisation has been granted.
+
 ## How to connect a service
 
 Connectors are set up per user, not per organisation. Each person who wants to use a connector must authorise it with their own account.
@@ -27,10 +42,14 @@ Connectors are set up per user, not per organisation. Each person who wants to u
     In the Ragen main app, navigate to **Settings → Connectors**. You'll see a list of all available connectors and their current status.
   </Step>
   <Step title="Click Connect">
-    Select the connector you want to add and click **Connect**. Ragen initiates an OAuth authorisation flow for that service.
+    Select the connector you want and click **Connect**. What happens next depends on how that connector authenticates:
+
+    - **OAuth** (Google, Slack, HubSpot, ClickUp) — an authorisation window opens.
+    - **API key** — Ragen asks for your key for that service.
+    - **No credential** — it connects immediately.
   </Step>
   <Step title="Authorise in the provider's window">
-    A browser window opens for the provider (Google, Slack, HubSpot, etc.). Sign in and grant the requested permissions. The exact scopes shown depend on the connector.
+    For an OAuth connector, sign in and grant the requested permissions. The exact scopes depend on the connector.
   </Step>
   <Step title="Confirm the connection">
     After authorising, the browser redirects back to Ragen. The connector's status changes to **Connected**. Your credentials are now stored securely.
@@ -78,3 +97,15 @@ Once a connector is active, Ragen's assistants automatically include it as a too
 <Tip>
   If an assistant isn't using a connector you've connected, check **Settings → Connectors** to confirm the connection is healthy. A connector with an expired or revoked token shows an error and needs to be reconnected.
 </Tip>
+
+Ragen prefixes each connector's tools with its slug, so a `weather` connector's `find_place` tool reaches the model as `weather__find_place`. You'll see these names in an assistant's reasoning when it uses one.
+
+## If a connector you expect isn't there
+
+| What you see | Why |
+|---|---|
+| The connector isn't in the list at all | Your organisation hasn't been granted it, or a platform admin has disabled it installation-wide |
+| It's listed but shows an error | The credential expired or was revoked — reconnect it |
+| It connects but the assistant never uses it | The assistant only calls a connector when the question needs it; check the connector is enabled for the project too |
+
+A platform admin can see all of this at once in **Connector Health** in the admin panel.
