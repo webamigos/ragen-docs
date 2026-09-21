@@ -258,7 +258,9 @@ OpenTelemetry ([ADR-22](https://github.com/webamigos/RagenAI/blob/main/docs/adrs
 
 ### Token vault
 
-Connector OAuth tokens and API keys ([ADR-32](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/32-token-vault-and-mcp-stay-separate.md)). Each URL and its secret are all-or-nothing: a URL without its secret produces 401s rather than a legible error.
+Connector OAuth tokens and API keys ([ADR-32](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/32-token-vault-and-mcp-stay-separate.md)), held by a separate service — see [Token vault](/configuration/token-vault). Each URL and its secret are all-or-nothing: a URL without its secret produces 401s rather than a legible error.
+
+Optional here means Ragen starts without them. Connectors and API keys do not work without them, and they fail when you use the feature rather than at startup.
 
 | Variable                           | Config field      |          |
 | ---------------------------------- | ----------------- | -------- |

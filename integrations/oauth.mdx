@@ -31,7 +31,7 @@ Ragen contains two separate OAuth flows. They use the same two environment varia
 | Who authenticates | A platform administrator | A regular user |
 | Redirect URI | `{admin URL}/api/auth/callback/google` | `{vault URL}/v1/oauth/google/callback` |
 | Scopes | `openid`, `email`, `profile` | Calendar / Drive / Analytics / Ads scopes |
-| Where tokens land | The admin panel's session store | The credential store, encrypted at rest |
+| Where tokens land | The admin panel's session store | The [token vault](/configuration/token-vault), encrypted at rest |
 
 Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pair of credentials in the shared root `.env.local`, both features point at the same Google Cloud client.
 

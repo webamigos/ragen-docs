@@ -1,0 +1,116 @@
+---
+title: 'Running the Ragen Token Vault for Connector Tokens and API Keys'
+sidebarTitle: 'Token vault'
+description: 'A separate service that holds connector OAuth tokens and API key secrets, encrypted with AES-256-GCM. Chat and knowledge base run without it; connectors and the public API do not.'
+---
+
+Ragen keeps credentials out of its own database. Connector OAuth tokens and the secret half of every API key live in **ragen-token-vault**, a small service you run alongside the app. Ragen's Postgres holds only what is safe to read: which provider a user connected, when, and a masked key like `sk-a1b2c3…`.
+
+This split is deliberate. A database dump, a restored backup, or a support engineer with read access to Postgres exposes no usable credential. It also keeps the app stateless with respect to secrets, so `apps/web`, the API and the connector services can all be scaled or replaced without moving key material.
+
+<Note>
+  The vault is a separate repository and a separate container: [`webamigos/ragen-token-vault`](https://github.com/webamigos/ragen-token-vault). Images are published to `ghcr.io/webamigos/ragen-token-vault`.
+</Note>
+
+## Do you need it?
+
+This is the part worth deciding before you install, because the environment reference marks the vault's variables optional and that is true only in the narrow sense that Ragen boots without them.
+
+| Feature | Without the vault |
+|---|---|
+| Chat, RAG, knowledge base, documents | Works |
+| Users, organisations, teams, guardrails | Works |
+| **Connecting any MCP connector** | Fails — the token has nowhere to go |
+| **Creating an API key** | Fails — the secret has nowhere to go |
+| **Using the public API** | No keys can be created, so nothing can authenticate |
+| Listing and deactivating existing API keys | Works |
+| **Revoking** an API key | Unavailable — the panel says so and disables the control |
+
+So: if you want chat over your own documents and nothing else, you can skip it. If you want connectors or the public API, run it.
+
+<Warning>
+  Without the vault, connecting a connector or creating an API key raises an error naming `RAGEN_TOKEN_VAULT_URL` and `RAGEN_TOKEN_VAULT_SERVICE_SECRET`. The failure happens at the moment you use the feature, not at startup, so a deployment can look healthy for weeks before anyone tries.
+</Warning>
+
+## What it stores
+
+| | Where the secret lives | What Postgres keeps |
+|---|---|---|
+| Connector OAuth tokens | Vault, encrypted | Provider, connection status, timestamps |
+| API key secrets | Vault, under `api-key-<id>` | Metadata and a masked value |
+
+Everything is encrypted with AES-256-GCM before it is written, under a key only the vault holds. Calls between Ragen and the vault are authenticated with HMAC-SHA256 over the timestamp, method, path and a hash of the body, so a leaked URL is not enough to read anything.
+
+## Running it
+
+<Steps>
+  <Step title="Generate two secrets">
+    The vault needs an encryption key and a shared secret for service-to-service authentication. Both are 32 random bytes as hex:
+
+    ```bash
+    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+    ```
+
+    Run it twice — once for `ENCRYPTION_KEY`, once for `RAGEN_TOKEN_VAULT_SERVICE_SECRET`.
+
+    <Warning>
+      Losing `ENCRYPTION_KEY` means losing every stored credential — there is no recovery path, and every user has to reconnect every connector. Back it up with the same care as your database, and separately from it.
+    </Warning>
+  </Step>
+
+  <Step title="Give it a database">
+    The vault owns its own PostgreSQL database and runs its own migrations. Point `DATABASE_URL` at a database Ragen does not share.
+  </Step>
+
+  <Step title="Start the service">
+    It listens on `3100` by default.
+
+    ```bash
+    docker run -d --name ragen-token-vault \
+      -p 3100:3100 \
+      -e DATABASE_URL="postgresql://…" \
+      -e ENCRYPTION_KEY="<first hex string>" \
+      -e RAGEN_TOKEN_VAULT_SERVICE_SECRET="<second hex string>" \
+      ghcr.io/webamigos/ragen-token-vault:latest
+    ```
+  </Step>
+
+  <Step title="Point Ragen at it">
+    In Ragen's environment:
+
+    ```bash
+    RAGEN_TOKEN_VAULT_URL=http://ragen-token-vault:3100
+    RAGEN_TOKEN_VAULT_SERVICE_SECRET=<the same second hex string>
+    ```
+
+    The secret must match on both sides — it is what signs the requests.
+
+    <Note>
+      Set both or neither. A URL without its secret produces 401s from the vault rather than a legible configuration error. The admin panel needs the same pair to offer **Revoke** on the API Keys page.
+    </Note>
+  </Step>
+</Steps>
+
+### Variable names
+
+`RAGEN_VAULT_URL` and `RAGEN_VAULT_SERVICE_SECRET` are an older spelling, still accepted as a fallback. New installations should use the `RAGEN_TOKEN_VAULT_*` names.
+
+## Connector OAuth goes through the vault
+
+For connectors that use OAuth, the vault — not Ragen — is the OAuth client. It performs the PKCE exchange with the provider and stores the resulting tokens without them ever passing through Ragen's database.
+
+That is why the redirect URI you register with a provider points at the vault:
+
+```
+{vault URL}/v1/oauth/google/callback
+```
+
+This is a different flow from Google sign-in for the admin panel, which does not involve the vault at all. The two are easy to confuse because they read the same `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` — see [OAuth setup](/integrations/oauth) for the comparison and the pitfall.
+
+## Networking
+
+The vault holds every credential in the installation, so treat it as an internal service:
+
+- Reachable from Ragen and the connector services, and from nowhere else.
+- Not published to the public internet. The one exception is the OAuth callback path, which a user's browser is redirected to — if you use OAuth connectors, that URL must be reachable by the browser while the rest of the API stays internal.
+- Behind TLS wherever the traffic crosses a network you do not control.
