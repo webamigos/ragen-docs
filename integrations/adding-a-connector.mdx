@@ -80,10 +80,20 @@ So `http://localhost:9005/mcp` cannot be saved. The refusal reads *"That address
 - a public hostname over HTTPS in production, box unticked.
 
 <Warning>
-  A connector that carries a credential — `API_KEY_BEARER` or `EXTERNAL_MCP` —
-  requires **HTTPS**, with no exception. A user's own API key or an OAuth token
-  would otherwise travel in clear text. Plain `http://` is available only for
-  `SERVER_SIDE` connectors, which carry no credential.
+  **A connector that carries a credential requires HTTPS, with no exception.**
+  `API_KEY_BEARER` sends a user's own API key and `EXTERNAL_MCP` sends an OAuth
+  token; either would otherwise travel in clear text. Ragen refuses plain
+  `http://` for both.
+
+  **`SERVER_SIDE` may use `http://`, but that is not the same as it being
+  private.** No credential is exposed, and these still are: the
+  `x-customer-id` header, which carries your organisation and user
+  identifiers, and every MCP payload — the arguments each tool is called with
+  and the data it returns.
+
+  So plain `http://` is for a network you control and trust: a private subnet,
+  a Docker network, a development machine. On anything else, including any hop
+  you do not own, use HTTPS.
 </Warning>
 
 ## Turning a connector off
