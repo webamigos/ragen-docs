@@ -1,0 +1,202 @@
+---
+title: 'Rules Every Chat Turn Has to Pass'
+sidebarTitle: 'Guardrails'
+description: 'Author guardrail rules in the admin panel — built-in detectors, regex patterns, and policies judged by a model — and apply them per organisation without a deploy.'
+---
+
+A guardrail is a rule a chat turn has to pass. You write it in the admin panel at **Guardrails**, switch it on when you trust it, and every chat surface picks it up — the panel, the embedded widget, and the public API. Nothing is redeployed and no environment variable changes.
+
+Rules apply on the way in (the user's message) or on the way out (the model's answer), and a hit can refuse the turn, mask what matched, or simply be recorded.
+
+<Note>
+  Guardrails and [PII masking](/security/pii-masking) compose, and the order matters: by the time a rule sees a turn, Presidio has already replaced personal data with placeholders. A pattern like `\d{11}` will **not** match a national ID — it sees `<PESEL_1>`. Write your patterns against the placeholders if that is what you want to catch.
+</Note>
+
+## What a rule is
+
+| Field | Values | What it decides |
+|---|---|---|
+| `kind` | `BUILT_IN`, `PATTERN`, `LLM_POLICY` | what does the detecting |
+| `stage` | `INPUT`, `OUTPUT`, `BOTH` | which side of the turn |
+| `action` | `BLOCK`, `MASK`, `LOG` | what a hit does |
+| `severity` | `info`, `warn`, `critical` | the severity of the security event a hit writes |
+| `enabled` | on / off | whether it runs — **off on creation, always** |
+
+A new rule starts switched off, and its action starts at `LOG`. This is deliberate: a rule that begins by blocking is a rule whose false-positive rate nobody has measured. Leave it on `LOG` for a few days, read the hit counts, then decide whether it earns a `BLOCK`.
+
+What a hit does:
+
+| Action | Effect on the turn | Event recorded |
+|---|---|---|
+| `LOG` | Nothing. The turn proceeds. | `GUARDRAIL_FLAGGED` |
+| `MASK` | The matched span is replaced before the text moves on. | `GUARDRAIL_FLAGGED` |
+| `BLOCK` | The turn is refused. | `GUARDRAIL_BLOCKED` |
+
+**`MASK` is available on `PATTERN` rules only.** Masking needs a span to cut out, and both a built-in detector and a judge model return a verdict over the whole text rather than a position in it. The rule form offers only the actions a kind can actually carry out, so you cannot save a masking rule that would silently behave as a block.
+
+<Info>
+  `MASK` changes what the model is given, never what the thread records. It is applied to the whole assembled chat history on every turn, not only to the newest message — otherwise a mask applied on turn one would be undone on turn two, when the original came back through history.
+</Info>
+
+Severity is yours and is not overridden anywhere. A rule you set to `info` writes an `info` event, which means it will not reach a `SECURITY_ALERT_SEVERITY` threshold of `critical`. See [the admin panel](/security/admin-panel) for how email alerting reads these.
+
+## The built-in detectors
+
+Two detectors ship with Ragen. They are seeded rather than created: each is identified by a key the code knows, so you switch them on and tune them, but you cannot add a third from the panel.
+
+| Rule | What it asks | Threshold | Credentials |
+|---|---|---|---|
+| `content-moderation` | OpenAI's moderation endpoint, about the user's message | No — the endpoint answers with a flag, not a score | `OPENAI_MODERATION_KEY`, falling back to `OPENAI_API_KEY` |
+| `jailbreak-detection` | A judge model, scoring how much the message looks like an attempt to override the assistant's instructions | Yes — `0.7` unless you set one | The judge model's provider |
+
+`content-moderation` has no threshold field, and that is not an omission — a number you could set and nothing would read is worse than no field at all.
+
+For `jailbreak-detection` you can change how sure the detector has to be, but not the question it asks: a built-in's prompt is fixed in code.
+
+<Warning>
+  **No built-in runs on output.** Both detectors ask a question about the *user's* message, and neither is a question about an answer. If you need the answer checked, write a `PATTERN` or an `LLM_POLICY` rule on the `OUTPUT` stage.
+</Warning>
+
+### Upgrading from `MODERATION_ENABLED`
+
+If you ran an earlier version of Ragen with `MODERATION_ENABLED=1`, read this before you deploy.
+
+<Warning>
+  **`MODERATION_ENABLED` is read by nothing at runtime.** Content moderation is the `content-moderation` rule now. On an installation where the variable is still set and that rule is still switched off, deploying stops moderating and nothing errors — the chat keeps answering, and the only evidence is an absence.
+
+  Before such a deploy, run:
+
+  ```bash
+  npm run guardrails:preflight
+  ```
+
+  Run it against the environment each service will actually get. It compares what you were enforcing with what the panel holds and exits non-zero while the two disagree. Once it is clean, **delete `MODERATION_ENABLED` from your environment** — left in place it looks like an off switch and is not one.
+</Warning>
+
+`OPENAI_MODERATION_KEY` is unaffected and still in use: it is the credential the `content-moderation` rule calls with.
+
+The upgrade also carries over what each organisation had. Where the old per-organisation content moderation setting was off, the migration wrote an override switching the rule off for that organisation — marked as coming from that setting, and honoured **only on an on-premise installation**, because the old column was only ever read there. Editing such an override in the panel clears the marking, and your decision then applies like any other.
+
+## Pattern rules
+
+A `PATTERN` rule matches text: a literal string, or a regular expression when you mark it as one.
+
+Patterns are validated when you save them, in a worker that is killed on a deadline. A catastrophically backtracking expression cannot be interrupted once a request has entered it, so save time is the only place it can be stopped — which is why the form sometimes refuses a regex that looks fine.
+
+**An output pattern carries one extra restriction.** The answer streams as it always did, except for the last 256 characters, which are held back so a match spanning two chunks is still caught. The string your rule runs against is therefore that window's buffer, not the finished answer — so `^`, `$`, and any match that could be wider than 256 characters mean something other than what you intend. The form refuses such a pattern when you save it, and says why.
+
+Pattern evaluation also has a per-turn time budget. A rule skipped because the budget ran out is reported rather than swallowed, so an organisation that quietly stops being protected as it adds rules is a state you can see.
+
+## Policies judged by a model
+
+An `LLM_POLICY` rule is prose. You describe what is not allowed, a judge model scores the turn from 0 to 1, and the rule fires at or above its threshold.
+
+| Setting | Value |
+|---|---|
+| Judge model | `gemini-2.5-flash` |
+| Timeout | 3 s, per rule |
+| Default threshold | `0.7` |
+| Active policy rules per stage, per organisation | 3 |
+
+None of these is configurable. The panel and the public API have to score a turn identically, and a judge that differed between them would differ silently — both answers are a number in the right range.
+
+Three things are worth knowing before you write one:
+
+- **The cap is per stage, per organisation, and a platform policy counts against every organisation's allowance.** Three platform policies leave a tenant no room for one of their own, and rules past the cap do not run rather than queueing. The rules that were left out are reported.
+- **Spend scales with the rule count.** Policy rules run last and concurrently, so latency stays at the slowest rather than the sum — but a fourth policy rule is a fourth model call on every turn, for ever. What the judge costs appears on the AI usage page under `GUARDRAIL`, as its own step.
+- **A judge that cannot answer is a pass.** A timed-out judge is logged but not recorded as a hit, so a provider blip does not put a row on the incidents page or distort your hit counts.
+
+A threshold you leave empty means the rule names none, so the default applies. It is stored as "unset" and never as `0` — a threshold of zero matches every message.
+
+### Try a policy before you switch it on
+
+The rule form carries a **test this policy** box: paste a message, and you get back the score, the threshold that was applied, and whether the rule would have fired.
+
+The trial runs the judge in the same runtime that serves chat, so you are tuning against the number real traffic produces. If this installation masks personal data, the box masks the text first and shows you what the judge actually read; if masking is on and the analyzer does not answer, the trial is not run rather than run against raw text.
+
+<Note>
+  A trial writes no AI usage row — a platform administrator testing a draft has no organisation to bill, and inventing one would put a number on some organisation's page that nobody in it caused. Your provider still bills for these calls. The record of them is the admin audit entry `admin.guardrail.policy_tested`, which holds the outcome, the threshold and the score, and neither your prose nor the pasted message.
+</Note>
+
+## What an output rule leaves the reader looking at
+
+When an `OUTPUT` rule blocks, the answer is stopped and a notice is stored as the assistant message — **never the withheld text**. That notice is a real message in the thread, so it survives a page reload: someone returning to the conversation an hour later can still see that an answer was withheld rather than finding a question that was never answered.
+
+What the reader sees at the moment it happens depends on the surface:
+
+| Surface | Behaviour |
+|---|---|
+| Panel and embedded widget | Whatever was already rendered is taken back, and the notice appears in the reader's own language |
+| OpenAI-compatible API clients | The stream ends with `finish_reason: "content_filter"`. Chunks already on the wire cannot be retracted, so a client that ignores the finish reason keeps what it had received |
+
+So an output `BLOCK` is a guarantee about what is **stored, and what Ragen's own surfaces show**, and a signal to everyone else. If text must never reach a caller at all, the rule belongs on the input stage — or that caller must not be streamed to in the first place.
+
+<Warning>
+  **One judged output rule makes the whole answer buffered.** A judge scores a finished answer, so nothing can be shown until the last token has landed: the answer appears all at once instead of word by word. This changes how chat feels rather than what it allows, and it tends to come back as "chat got slow" from someone who has never seen this page. A `PATTERN` rule on output does not do this — it streams, minus the 256-character window.
+</Warning>
+
+## An input refusal leaves no trace in the thread
+
+This is the current behaviour, and it is asymmetric with the output stage in a way worth knowing before you rely on it.
+
+When an `INPUT` rule blocks, the turn is refused and the reader gets a notification explaining that the message was not sent. **That notification is the only trace.** The user's message is stored, no assistant message is created, and after a page reload the thread looks like a question the assistant never answered. There is nothing in the conversation to explain why.
+
+The output stage persists its refusal; the input stage persists nothing. The security event is still recorded either way, so an operator can see what happened on **Activity & Incidents** — but the person in the conversation cannot.
+
+## Per-organisation overrides
+
+The set of rules an organisation is subject to is its own rules plus the platform's, with any overrides applied:
+
+```
+effective set = (platform rules, overrides applied)  ∪  that organisation's own rules
+```
+
+An override adjusts one platform rule for one organisation, and it can set three things: whether the rule runs, what it does when it fires, and — on a scored rule — the score it fires at. "Keep the platform's rule, but only log it for us" is what overrides exist for.
+
+Every value is three-state, and leaving one alone means inherit. Set all three back to inherit and the override is removed entirely.
+
+You set these on the same **Guardrails** page: pick an organisation under **One organization**, and the panel shows what that organisation is actually subject to, with the layer that decided each value. An operator who cannot see *why* a rule is on is not in control of it.
+
+<Info>
+  An override can switch a rule **on** for one organisation even when the platform default is off. That is the point of it, and it is also why the hit counts distinguish `0` from `—`.
+</Info>
+
+## A rule change takes up to 60 seconds
+
+Rules are cached for 60 seconds per organisation. A rule you switch on, switch off, or retune starts or stops applying within that window — not on the next message.
+
+This is the single most common reason to conclude that a rule does not work. If you have just changed something, wait out the minute before testing it.
+
+A **failed** rule load fails open, and the failure is cached for 5 seconds — so an outage costs one query per organisation per interval rather than one per turn. That five seconds is the window in which rules are not enforced, which is why it is measured in seconds while the success window is measured in a minute.
+
+## Reading what your rules did
+
+**Guardrails** shows each rule's hits over the last 7 days, split into blocked and flagged, across every organisation and every surface.
+
+A rule that is on and has matched nothing shows `0`. A rule that is off everywhere shows `—`, because a rule nothing evaluated has not been measured, and `0` would read as "measured, no false positives".
+
+**Activity & Incidents** is where the individual hits are. Filter by **Any guardrail hit**, or by `GUARDRAIL_BLOCKED` and `GUARDRAIL_FLAGGED` separately — "what was stopped" and "what was merely noticed" are two different questions, which is why they are two event types.
+
+Each event carries the rule's identifier, its key or name, kind, stage, action, and a match count — plus the judge's score for a policy rule. It carries **neither the matched text nor the judge's reasoning**, which is why the judge is never asked for a reason: that text is the customer's message, which Ragen [encrypts per organisation](/security/encryption) and scrubs before it reaches a log. The admin panel renders event metadata to any operator who can open the page, so what is not in there cannot leak there. The rule and the count are enough to tell a false positive from a real hit.
+
+## Switching guardrails off
+
+**In the panel**, which is the normal path: disable the rule. It stops applying within the 60-second cache.
+
+**With the environment**, for the case the panel cannot reach in time — a rule matching every message, faster than you can sign in:
+
+```bash
+GUARDRAILS_DISABLED=1
+```
+
+Restart, and the service behaves as every installation did before guardrails existed. It accepts the same truthy values as `IS_ON_PREMISE`, so `GUARDRAILS_DISABLED=true` does not quietly mean "no".
+
+There is no `GUARDRAILS_ENABLED`. An installation that has written no rules is already in the state such a variable would give it.
+
+## Limits worth knowing
+
+- **Rules run downstream of PII masking.** On input, personal data is already replaced with placeholders; on output, rules read the model's text before the personal data is put back. Match on the placeholders, not on the original shapes.
+- **An input refusal is not persisted in the thread.** Only the security event survives it.
+- **An output block is a guarantee for stored and panel-rendered text, and a signal to streaming API clients.** It cannot unsend bytes already on the wire.
+- **Pattern budget and policy cap both drop rules rather than queueing them.** In both cases the rules that did not run are reported, so this is visible — but it is visible only if you look.
+- **A timed-out judge records no usage**, and your provider may still bill for the call. That is the honest limit of measuring this from the client side.

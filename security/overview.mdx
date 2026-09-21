@@ -63,7 +63,7 @@ Ragen maintains two separate logs.
 
 **Audit log** — records who did what and when, including before-and-after state: document uploads and deletions, permission and role changes, API key creation and revocation.
 
-**Security event log** — covers 21 event types across three severity levels (`info`, `warn`, `critical`) with a handling status. Events include failed logins, brute-force attempts, attempted cross-organisation access, detected prompt manipulation, detected personal data, and rate-limit breaches. Each entry includes the IP address, user agent, and a request identifier.
+**Security event log** — covers 26 event types across three severity levels (`info`, `warn`, `critical`) with a handling status. Events include failed logins, brute-force attempts, attempted cross-organisation access, detected prompt manipulation, detected personal data, rate-limit breaches, and [guardrail](/security/guardrails) hits. Each entry includes the IP address, user agent, and a request identifier.
 
 <Info>
   Neither log has a retention policy or automatic deletion. Rows accumulate in Postgres until you remove them. Both tables hold personal data (IP addresses, user agents, user IDs), so defining and enforcing a retention schedule is your responsibility.
@@ -80,6 +80,8 @@ Personal data detection via Microsoft Presidio — including Polish recognisers 
 ## Prompt injection protection
 
 Document content is treated as data, not as instructions. The system prompt carries an explicit confidentiality rule and is regression-tested against a red-team evaluation suite. The system cites only sources present in the retrieved material and reports when no answer was found rather than constructing one.
+
+On top of that, `jailbreak-detection` is a built-in [guardrail rule](/security/guardrails): a judge model scores how much a message looks like an attempt to override the assistant's instructions, and the rule fires above a sensitivity threshold you set. It is **off until you switch it on** in the admin panel, and it starts by recording hits rather than refusing turns — so you can read its false-positive rate before it blocks anything. Content moderation is a built-in rule on the same page.
 
 ## Data ownership
 
