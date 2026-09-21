@@ -1,0 +1,135 @@
+---
+title: 'Build Your Own MCP Connector for Ragen'
+sidebarTitle: 'Build a connector'
+description: 'Scaffold an MCP server Ragen can connect to with one command. create-ragen-connector writes the two listeners, the Dockerfile, the tests, and the three places Ragen departs from the MCP specification.'
+---
+
+If the service you want isn't in the catalogue and has no MCP server of its own, write one. `create-ragen-connector` scaffolds it:
+
+```bash
+npx create-ragen-connector "Weather"
+```
+
+You get a working MCP server, the values to paste into Ragen's catalogue, and — the part that is hard to discover otherwise — the three places Ragen's client behaves differently from what the MCP specification alone would tell you.
+
+## What you get
+
+```bash
+npx create-ragen-connector "Weather" --slug=weather --auth=server_side
+```
+
+```text
+weather/
+├── src/
+│   ├── index.ts                  entrypoint: OTEL → env → FastMCP + Hono
+│   ├── auth.ts                   the credential model for your auth type
+│   ├── tools/example-tools.ts    two working MCP tools — start here
+│   ├── services/example-api.ts   the upstream client
+│   └── __tests__/                mock the upstream; never call it
+├── Dockerfile                    non-root, both ports exposed
+├── docker-compose.yml
+├── README.md                     how to connect it, and what Ragen sends
+└── ragen-connector.json          the catalogue values, ready to paste
+```
+
+Then:
+
+```bash
+cd weather
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+## Two ports, and both matter
+
+A connector is **two listeners**: Hono on `PORT` for health and REST, and FastMCP on `PORT + 1000` for `/mcp`. They cannot share one.
+
+| | Address | What it is |
+|---|---|---|
+| Hono | `http://localhost:8080/health` | health checks and any REST you add |
+| FastMCP | `http://localhost:9080/mcp` | **the endpoint Ragen dials** |
+
+A green `/health` proves nothing about the second. If you publish only the first from a container, the service looks healthy and has no tools — which at the client reads as a Ragen bug rather than a deployment one.
+
+## Where it runs
+
+The CLI produces one of two shapes, chosen by where you run it:
+
+- **Standalone** — anywhere. Its own `package.json`, git repository, Dockerfile and tests. This is what you want for your own connector.
+- **Workspace** — inside a `ragen-connectors` checkout, as `services/<slug>`, joining the existing build and port table.
+
+Force either with `--target=standalone` or `--target=workspace`.
+
+## Three things Ragen does that the MCP spec does not
+
+Every generated connector encodes these, with a test beside each. They are the reason to scaffold rather than start from a bare MCP template.
+
+### `customer_id` arrives as a tool parameter
+
+Ragen injects `{orgId}:{userId}:{slug}` into **every tool call** as a parameter, and strips it from the schema the model sees — so the model can neither read nor choose it. It is your multi-tenancy key: scope your data by it.
+
+There is an `x-customer-id` header too, but only for `server_side` connectors. An `api_key_bearer` connector gets `Authorization` and no customer header. **Take the parameter**, which is the channel Ragen guarantees on every auth type.
+
+### A tool returns an envelope and never throws
+
+```ts
+JSON.stringify({ success: true,  places })
+JSON.stringify({ success: false, error: "Could not reach the registry: timed out" })
+```
+
+A thrown error reaches the model as an opaque protocol failure it cannot act on or explain to the user. Write the error in the caller's terms — the model will repeat it.
+
+### Your session handler must refuse nothing
+
+Ragen's **Test connection** button opens an MCP session and lists your tool names **with no headers at all** — no customer id, no credential. That is the only check an operator gets that the address is right.
+
+A connector that demanded a header would fail at precisely the moment somebody is verifying it works. So accept the session, and enforce credentials **per tool call**, returning the `{success: false}` envelope. The generated `auth.ts` does this and explains the trade: your tool *names* become readable to anyone who can reach the port; your data does not.
+
+## Authentication
+
+| `--auth` | The user supplies | Ragen sends |
+|---|---|---|
+| `server_side` | nothing | `x-customer-id` |
+| `api_key_bearer` | their own API key | `Authorization: Bearer <key>` |
+
+`external_mcp` (OAuth) is **not** scaffolded. FastMCP can serve the discovery endpoints Ragen looks for, but a generated authorization server nobody can run without their own provider and credentials would be boilerplate you cannot verify. Wire FastMCP's `oauth` option by hand if you need it.
+
+## Flags
+
+Every prompt has one, so this runs in CI.
+
+| Flag | Default |
+|---|---|
+| *(positional)* | the name |
+| `--slug=` | the name, kebab-cased |
+| `--description=` | empty |
+| `--auth=` | `server_side` |
+| `--port=` | 8080 standalone, next free pair in a workspace |
+| `--icon=` | `plug` |
+| `--target=` | detected |
+| `--skip-git` | off |
+| `--yes` | accept every default |
+
+A malformed flag is **refused**, not ignored — `--auth=` with no value, or `--yes=true`, both stop the run. A typo that silently changes nothing is how a CI job scaffolds the wrong connector and reports success.
+
+## Connect it to Ragen
+
+`ragen-connector.json` holds the values; a platform admin pastes them into **MCP Catalogue**. Full procedure, and the two things that catch people, in [Adding a connector](/integrations/adding-a-connector).
+
+The short version: the URL must end in `/mcp`, and `localhost` is refused by the address policy even with "allow a private address" ticked — use your LAN address while developing.
+
+## Before you call it done
+
+```bash
+npm run lint && npm run typecheck && npm run build && npm test
+```
+
+Then start it and confirm **both** ports answer. The health check alone has never been evidence.
+
+<Tip>
+  Replace the example tools with real ones, but keep the envelope contract and
+  the `customer_id` parameter. Test the `{success: false}` branch too — an
+  upstream is down or rate-limited far more often than a tool's arguments are
+  wrong, and that is the branch your users will actually meet.
+</Tip>
