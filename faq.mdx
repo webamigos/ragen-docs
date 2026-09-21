@@ -132,7 +132,7 @@ This page answers the questions that come up most often when getting started wit
     Two caveats apply regardless:
 
     - **Document parsing can fall back externally.** `DOCUMENT_PARSER=docling` parses on your hardware, but if Docling fails the worker falls back to a loader that sends PDFs to an external model. Set `DOCLING_STRICT=1` to fail ingest instead.
-    - **Content moderation goes directly outward.** If `MODERATION_ENABLED` is on, it calls OpenAI's moderation endpoint directly — it is the one model call the route table cannot redirect. Leave moderation off on an isolated install.
+    - **Content moderation goes directly outward.** Moderation is a [guardrail rule](/security/guardrails) called `content-moderation`, switched on in the admin panel rather than by an environment variable. When it is on it calls OpenAI's moderation endpoint directly — the one model call the route table cannot redirect. Leave the rule off on an isolated install.
 
     See [Security and Privacy](/security/overview) for the full breakdown.
   </Accordion>

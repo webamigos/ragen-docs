@@ -211,7 +211,7 @@ Setting local model targets closes most outbound traffic, but several other path
 
 | Path | Default Status | What to Do |
 |---|---|---|
-| Content moderation | Off (`MODERATION_ENABLED` unset) | Leave it off. When enabled, it calls the OpenAI Moderation API **directly** — it is the one model call that does not go through the route table and cannot be redirected. |
+| Content moderation | Off (the `content-moderation` rule starts disabled) | Leave the rule off in the admin panel's **Guardrails** page. When it is on, it calls the OpenAI Moderation API **directly** — it is the one model call that does not go through the route table and cannot be redirected. `MODERATION_ENABLED` no longer controls this; see [Guardrails](/security/guardrails). |
 | Legacy PDF parsing | Silent fallback | Set `DOCLING_STRICT=1`. Docling parses documents locally by default, but a Docling failure falls back to a loader that sends the PDF to an external model. |
 | Reranking | Off (`FEATURE_FLAG_RERANKING` unset) | Leave it off, or keep it local: vLLM's `/v1/rerank` speaks Cohere's shape, so `RERANK_PROVIDER=cohere` with `RERANK_COHERE_BASE_URL` pointed at your own server stays inside the network. `RERANK_COHERE_BASE_URL` has no default — unset means no reranking, silently. |
 | MCP connectors | Opt-in per organisation | Slack, HubSpot, Google, and similar connectors are outbound by design. Leave them unconfigured or accept the traffic knowingly. |

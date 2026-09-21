@@ -194,8 +194,16 @@ roughly 1 GB of RAM together and sit behind `--profile pii`, which is why this
 is opt-in at all. See [PII masking](/security/pii-masking).
 
 <Note>
-  Multi-query expansion has no environment flag. It is a per-organization setting — defaulting to on — under **Organization → RAG settings**, alongside per-organization toggles for reranking and content moderation.
+  Multi-query expansion has no environment flag. It is a per-organization setting, defaulting to on, shown alongside document summaries and reranking under **Organization → RAG settings**. Those switches are read-only: a platform administrator sets them per organisation on the admin panel's **RAG Settings** page.
 </Note>
+
+<Warning>
+  **Content moderation is not an environment variable, and the switch on that page is not what controls it.** Moderation is the `content-moderation` [guardrail rule](/security/guardrails): switch it on in the admin panel's **Guardrails** page, and override it there for a single organisation if you want.
+
+  `MODERATION_ENABLED` is read by nothing at runtime. If your installation still sets it, run `npm run guardrails:preflight` before deploying — it exits non-zero while your environment and the panel disagree about what is enforced — then remove the variable. `OPENAI_MODERATION_KEY` is still the credential the rule uses.
+
+  Upgrading an **on-premise** installation carries the old per-organisation value over: where content moderation was off for an organisation, the migration wrote an override switching the rule off for it.
+</Warning>
 
 ## Minimum environment
 

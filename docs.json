@@ -69,6 +69,7 @@
               "security/overview",
               "security/encryption",
               "security/pii-masking",
+              "security/guardrails",
               "security/admin-panel"
             ]
           },

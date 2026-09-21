@@ -179,7 +179,7 @@ A route carries no credentials and no display name. Credentials come from the en
 |---|---|---|
 | `REPHRASE_TEMPERATURE` | `0.5` | Temperature for the rephrase model |
 | `VECTOR_SIZE` | `3584` | Output dimensions of `EMBEDDINGS_MODEL`; must match exactly |
-| `OPENAI_API_KEY` | — | Also used for content moderation (`MODERATION_ENABLED=1`), which calls the OpenAI Moderation API directly rather than through the route table |
-| `OPENAI_MODERATION_KEY` | — | Dedicated key for moderation; falls back to `OPENAI_API_KEY` |
+| `OPENAI_API_KEY` | — | Also used by the `content-moderation` [guardrail rule](/security/guardrails), which calls the OpenAI Moderation API directly rather than through the route table |
+| `OPENAI_MODERATION_KEY` | — | Dedicated key for that rule; falls back to `OPENAI_API_KEY` |
 | `MULTIMODAL_TEXT_ONLY_MODELS` | — | Comma-separated model IDs that cannot process images; Ragen will swap to `MULTIMODAL_FALLBACK_MODEL` when a request includes an image |
 | `MULTIMODAL_FALLBACK_MODEL` | — | Vision-capable model to use when the primary model is text-only |

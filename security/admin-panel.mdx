@@ -38,9 +38,11 @@ Google sign-in is available as an optional convenience. The sign-in button appea
 | **Organizations** | View all organisations, manage members and roles, view settings, monitor usage, and review audit entries per organisation |
 | **Users** | Rename accounts, ban or unban users, grant or revoke the platform admin role |
 | **Features** | Set platform-wide feature flag defaults; see which layer (org override / plan / platform default / built-in) is resolving each flag for any org |
-| **Limits & Models** | Set storage ceilings, monthly token and cost caps, member caps, model allowlists, and RAG pipeline settings — per organisation and as platform defaults |
+| **Limits & Models** | Set storage ceilings, monthly token and cost caps, member caps, and model allowlists — per organisation and as platform defaults |
+| **RAG Settings** | Set the retrieval pipeline's per-organisation switches — multi-query expansion, document summaries, reranking — and the platform defaults for them. The matching page inside the main app (**Organization → RAG settings**) shows these read-only |
 | **API Keys** | View every API key on the installation with its organisation, project, creator, debug mode status, and last-used date; deactivate or permanently revoke any key |
 | **MCP Catalogue** | Add an MCP server to the installation without a deploy, test it before customers find a typo, and switch any connector off platform-wide — see [Adding a connector](/integrations/adding-a-connector) |
+| **Guardrails** | Write the rules a chat turn has to pass, switch built-in detectors on, read each rule's hits over the last 7 days, and override any rule for a single organisation — see [Guardrails](/security/guardrails) |
 | **Connector Health** | See which MCP connectors are failing, why, and how long ago; force reconnect for connectors with revoked or invalid credentials |
 | **Usage** | AI usage (tokens and estimated cost per model call) and disk usage per organisation, filterable by period |
 | **Activity & Incidents** | Audit log of all admin panel actions plus the security event log with inline resolution tracking and email alert configuration |
@@ -88,7 +90,11 @@ The **Activity** log, AI usage, disk usage, API keys, connectors, and incidents 
 
 Every mutating action in the panel is recorded with before-and-after values. Sensitive fields (masked API key values, tokens) are redacted before the entry is written.
 
-**Incidents** is the security-event view. It shows failed sign-ins, brute-force detection, connector authorisation failures, rate-limit breaches, and cross-organisation access attempts. You can mark events as resolved, and that resolution is recorded too.
+**Incidents** is the security-event view. It shows failed sign-ins, brute-force detection, connector authorisation failures, rate-limit breaches, cross-organisation access attempts, and guardrail hits — `GUARDRAIL_BLOCKED` for a turn that was refused and `GUARDRAIL_FLAGGED` for one that was merely recorded or masked, filterable together as **Any guardrail hit**. You can mark events as resolved, and that resolution is recorded too.
+
+<Note>
+  Guardrail events carry the rule, its stage and action, and a match count — never the text that matched, and never a judge model's reasoning. Event metadata is rendered in plain text to every operator who can open this page, so what a guardrail refused is not readable here. See [Guardrails](/security/guardrails).
+</Note>
 
 <Note>
   Configure email alerts for security events with `SECURITY_ALERT_EMAIL` and `SECURITY_ALERT_SEVERITY`. The severity threshold defaults to `critical`. Alerts are deduplicated over 15 minutes and capped per hour to prevent alert flooding during an incident.
