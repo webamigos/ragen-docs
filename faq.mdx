@@ -22,9 +22,9 @@ This page answers the questions that come up most often when getting started wit
   <Accordion title="What are the minimum hardware requirements?">
     To run the full Ragen stack you need:
 
-    - **~8 GB of RAM** — document parsing (Docling) is the hungry part
+    - **8 GB of RAM** to evaluate it, 16 GB for a small production install — mostly headroom. The containers a default `docker compose up` starts idle at about 900 MB together, document parsing (Docling) being most of it. [What the stack actually costs](/self-hosting#what-the-stack-actually-costs) breaks it down service by service and shows how to run a smaller stack.
     - **Docker** and Docker Compose
-    - **Node.js 24.x** if you run the apps outside containers
+    - **Node.js `^24.15.0 || >=26.0.0`** if you run the apps outside containers — a range, not a floor
 
     A GPU is only required if you plan to serve language models locally. Everything else runs on CPU.
   </Accordion>

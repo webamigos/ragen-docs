@@ -11,8 +11,8 @@ Ragen runs entirely on your own infrastructure. This page walks you through the 
 Ensure the following are in place before you begin:
 
 - **Docker and Docker Compose** — all backing services run in containers.
-- **Node.js 24.x** — required if you are running the applications outside of containers.
-- **~8 GB of RAM** for the full stack. Document parsing is the most memory-intensive component; see the services table below for a breakdown.
+- **Node.js `^24.15.0 || >=26.0.0`** — required if you are running the applications outside of containers. This is a range, not a floor: 24.0–24.14 and the whole of 25 fail `npm install` on a transitive engine constraint.
+- **8 GB of RAM** available to Docker to evaluate Ragen, 16 GB for a small production install. Most of that is headroom rather than steady-state: the containers a default `docker compose up` starts idle at about 900 MB together, and the rest covers document parsing under load and the applications themselves. [What the stack actually costs](#what-the-stack-actually-costs) breaks it down.
 
 A GPU is only needed if you plan to serve language models on your own hardware. Everything else runs on CPU.
 
@@ -98,6 +98,10 @@ A GPU is only needed if you plan to serve language models on your own hardware. 
     npm run admin:dev    # apps/admin  — http://localhost:3200 (optional)
     ```
 
+    ```bash
+    npm run dev --workspace=@ragenai/mcp   # apps/mcp — http://localhost:3300/mcp (optional)
+    ```
+
     <Warning>
       `apps/api` is **not optional**. The web app delegates thread creation, the thread sidebar, and notifications to it. Running only the web app gives you a panel that loads and a chat that cannot open a thread.
     </Warning>
@@ -105,28 +109,86 @@ A GPU is only needed if you plan to serve language models on your own hardware. 
     <Note>
       `apps/worker` is what makes an uploaded document searchable. It is not in `docker-compose.yml` — it runs on the host and drains the job queues in Redis. Without it, uploads succeed and then sit unparsed indefinitely. The worker validates its own environment at boot and exits with the missing variable named rather than starting in a broken state.
     </Note>
+
+    <Note>
+      `apps/mcp` is the fifth application, and it is optional: it exposes your assistants to MCP clients such as Claude Desktop and Cursor, and nothing in the web panel depends on it. It is a thin forwarder — no database, no Redis, no key of its own — but it does need `apps/api` reachable, because every tool call goes there with the caller's own API key. Set `RAGEN_MCP_PORT` rather than `PORT`: three services in this repository read a bare `PORT`, and the root `.env.local` is shared by all of them. See [MCP Server](/integrations/mcp-server).
+    </Note>
   </Step>
 </Steps>
+
+## Applications
+
+Five applications ship in the repository. Three of them make a working install; the other two add surfaces you may not need.
+
+| Application | Port | Required | What it does |
+|---|---|---|---|
+| `apps/web` | 3000 | yes | Chat, knowledge base, organisation settings |
+| `apps/api` | 3001 | yes | The public REST API — and the web app delegates threads and notifications to it |
+| `apps/worker` | — | for uploads | Drains the ingest queue; without it an upload never becomes searchable |
+| `apps/admin` | 3200 | no | Platform administration across every organisation |
+| `apps/mcp` | 3300 | no | Exposes your assistants to MCP clients over Streamable HTTP |
 
 ## Services
 
 Every service has a specific role in the stack. Removing one affects only the capabilities it provides.
 
-| Service | Needed for |
-|---------|------------|
-| Postgres | Everything — the primary application database |
-| Qdrant | Vector search and document retrieval |
-| Redis | Background jobs — it is the queue. Required by the worker, and by the web app and API, which enqueue into it |
-| Docling | Local document parsing and OCR |
-| Presidio | Personal-data detection — optional, behind the `pii` Compose profile |
+| Service | Needed for | Started by default |
+|---------|------------|--------------------|
+| Postgres | Everything — the primary application database | yes |
+| Qdrant | Vector search and document retrieval | yes |
+| Redis | Background jobs — it is the queue. Required by the worker, and by the web app and API, which enqueue into it | yes |
+| Docling | Local document parsing and OCR | yes |
+| Presidio | Personal-data detection — two containers behind the `pii` Compose profile | no |
+| OpenTelemetry collector + Jaeger | Local tracing, behind the `observability` profile | no |
 
 <Note>
   **Redis is not optional on the default runtime**, and it is the variable most often missed. `WORKER_RUNTIME` defaults to `bullmq`, which puts the job queues in Redis: the worker drains them, and `apps/web` and `apps/api` write to them. An application that cannot reach Redis cannot enqueue a job, so an upload fails outright rather than being processed later. The Redis it points at must run `maxmemory-policy noeviction` — an evicting instance drops queue keys and the jobs go with them, which the worker refuses at boot rather than discovering in production. See [Background jobs](/configuration/background-jobs).
 </Note>
 
+### What the stack actually costs
+
+Measured on an idle stack, backing services only:
+
+| Service | Idle memory | Started by default |
+|---------|-------------|--------------------|
+| Presidio analyzer | 959 MB | no (`pii` profile) |
+| Docling | 721 MB | yes |
+| Postgres | 93 MB | yes |
+| Presidio anonymizer | 55 MB | no (`pii` profile) |
+| Qdrant | 43 MB | yes — grows with your index |
+| Redis | 11 MB | yes |
+| **Default `docker compose up`** | **~900 MB** | |
+| **Everything switched on** | **~1.9 GB** | |
+
+Two figures rather than one, because most of the total is optional. A plain
+`docker compose up` starts neither Presidio container, so unless you asked the
+installer for PII masking the containers cost you about 900 MB, not 1.9 GB.
+Qdrant is the line that moves as you add documents — size that one against your
+own corpus rather than against this table.
+
+The Node applications run on top of this and are not in the table. In
+development they are the larger half — each Next.js dev server is comfortably
+larger than Postgres — which is why the machine recommendation above sits well
+above the container total.
+
+#### Trimming it further
+
+| Want | Do | Costs you |
+|------|----|-----------|
+| No PII masking | Nothing — it is already off. `--profile pii` is what turns it on | Nothing; PII masking is opt-in |
+| No local document parsing | `DOCUMENT_PARSER=legacy`, and start only the services you need: `docker compose up -d postgres redis qdrant` | ~720 MB back, and **your PDFs leave your network** — see the warning below |
+| Fewer running services while you only want to try chat | Nothing supported. `npm run ragen:up:app` drops Redis, which no longer works | — |
+
+With Docling and Presidio both out, the stack is Postgres, Redis and Qdrant —
+under 150 MB idle.
+
+<Warning>
+  **`DOCUMENT_PARSER=legacy` sends PDFs to an external model, and `DOCLING_STRICT` does not stop it.** Strict mode governs the *fallback* from a failed Docling parse; with the legacy parser selected outright, Docling is never called and the strict check is never reached. If documents must not leave your network, Docling is not the component to trim — keep it, and set `DOCLING_STRICT=1`.
+</Warning>
+
 ## Published container images
 
-Building four images on every install is work nobody needs to repeat. Each
+Building five images on every install is work nobody needs to repeat. Each
 release publishes them to GitHub Container Registry, amd64:
 
 ```bash
@@ -147,11 +209,12 @@ every install; the [configuration reference](/configuration/environment-referenc
 lists what to supply.
 
 <Note>
-  **These five serve the default job runtime, and only that.** All of them are
-  BullMQ producers or consumers, which is what `WORKER_RUNTIME` defaults to. A
-  deployment that sets `WORKER_RUNTIME=temporal` cannot use `ragen-worker`,
-  `ragen-web` or `ragen-api` as published — the worker exits at boot and the
-  two producers throw on the first upload. See
+  **Three of these serve the default job runtime, and only that.**
+  `ragen-web` and `ragen-api` are BullMQ producers and `ragen-worker` is the
+  consumer, which is what `WORKER_RUNTIME` defaults to. A deployment that sets
+  `WORKER_RUNTIME=temporal` cannot use those three as published — the worker
+  exits at boot and the two producers throw on the first upload. `ragen-admin`
+  and `ragen-mcp` touch no queue and are unaffected. See
   [Durable execution](/configuration/background-jobs#durable-execution) for what
   to run instead: the worker is an image swap, the producers are a rebuild.
 </Note>
@@ -218,6 +281,7 @@ QDRANT_URL=http://localhost:6333
 OPENAI_API_KEY=<your provider key>
 DEFAULT_MODEL=gpt-4o-mini
 EMBEDDINGS_MODEL=text-embedding-3-small
+VECTOR_SIZE=1536
 
 BETTER_AUTH_SECRET=<random-secret>
 SESSION_AUTH_SECRET=<random-secret>
@@ -259,7 +323,7 @@ A local development setup is not suitable for production. Three areas require de
 
 ### Encryption
 
-**Ragen starts normally with no key provider and stores message content unencrypted.** That is fine for local development and wrong for production.
+**In local development Ragen starts with no key provider and stores message content in plaintext. A deployed one does not.** Outside `NODE_ENV=development`, a process with no encryption provider refuses to start: `apps/api` exits, `apps/web` serves a blocking page, and every content write throws. That is deliberate — the alternative silently writes readable messages until somebody thinks to check.
 
 Set `ENCRYPTION_PROVIDER` to one of the following values and supply the matching key material:
 
@@ -268,6 +332,10 @@ Set `ENCRYPTION_PROVIDER` to one of the following values and supply the matching
 | `scaleway` | Scaleway Key Manager |
 | `kms` | AWS KMS |
 | `local` | A locally-managed key (not recommended for multi-replica deployments) |
+
+Leaving `ENCRYPTION_PROVIDER` unset is not the same as having none: Ragen then auto-detects from whichever credentials are present, in the order Scaleway, KMS, local. Naming the provider is the readable choice.
+
+To run a deployed environment without encryption anyway — during a migration, say — set `ALLOW_UNENCRYPTED=1`. It is a conscious opt-out, logged as a `critical` security event on every start. It does **not** rescue a provider that is configured but broken; see [Encryption](/security/encryption).
 
 Verify encryption is active by creating a new thread after the change — if the API returns the thread without error and subsequent messages are readable, encryption is working correctly.
 
@@ -302,7 +370,15 @@ If you switch to a different embedding model, update `VECTOR_SIZE` accordingly:
 | Model | VECTOR_SIZE |
 |-------|-------------|
 | `bge-multilingual-gemma2` (default) | `3584` |
+| `text-embedding-3-small` | `1536` |
+| `text-embedding-3-large` | `3072` |
 | `cohere-embed-multilingual-v3` | `1024` |
+
+`VECTOR_SIZE` has one default — `3584`, the default model's — and Ragen does
+not infer it from any other model name. Setting `EMBEDDINGS_MODEL` and leaving
+`VECTOR_SIZE` alone is therefore the mismatch above rather than a smaller
+configuration: change one and you must change the other. The minimum
+environment earlier on this page sets both together for that reason.
 
 <Warning>
   Changing the embedding model after documents are already indexed makes all existing vectors incompatible with the new model. You must re-index everything when you change `EMBEDDINGS_MODEL`.

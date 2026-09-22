@@ -162,7 +162,8 @@ Build it from the repository's `apps/mcp/Dockerfile`, whose build context is the
 |---|---|---|---|
 | `TARGET_ENV` | **yes** | — | `local`, `staging` or `production`. Deployed instances must set it; see the warning below. |
 | `RAGEN_API_URL` | **yes when deployed** | `http://localhost:3001` | Where the Ragen API answers. On a platform with private networking, use the internal address. |
-| `PORT` | no | `3300` | The port the server listens on. |
+| `RAGEN_MCP_PORT` | no | `3300` | The port the server listens on. Prefer this over `PORT`. |
+| `PORT` | no | `3300` | Also honoured, for single-container hosts that inject it. `RAGEN_MCP_PORT` wins when both are set — three services in the Ragen repository read a bare `PORT`, and a checkout's root `.env.local` is shared by all of them, so one value moves all three. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | no | — | Enables tracing. Without it, telemetry is a no-op. |
 | `OTEL_SERVICE_NAME` | no | — | The service name in traces. |
 

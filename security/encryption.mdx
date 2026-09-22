@@ -7,7 +7,7 @@ description: 'Enable AES-256-GCM envelope encryption for conversation threads at
 Ragen offers opt-in AES-256-GCM envelope encryption for conversation data at rest. Each conversation thread gets its own data encryption key, which is itself encrypted by a master key held in your key provider. The master key never leaves your control.
 
 <Warning>
-  Encryption is **off by default**. With no key provider configured, Ragen starts normally and stores message content in plaintext. Local development works this way intentionally, but a production deployment must configure a provider explicitly. Verify that new threads are being encrypted by checking the SQL query in the [Verifying encryption is active](#verifying-encryption-is-active) section below.
+  Encryption is **off by default in local development only**. With no key provider configured, a development process starts and stores message content in plaintext — intentionally, so a fresh clone runs without a cloud account. A deployed one behaves differently: outside `NODE_ENV=development` a process with no provider refuses to start rather than writing plaintext, unless `ALLOW_UNENCRYPTED=1` waives it deliberately. Verify that new threads are being encrypted with the SQL query in [Verifying encryption is active](#verifying-encryption-is-active) below.
 </Warning>
 
 ## Choosing a key provider
