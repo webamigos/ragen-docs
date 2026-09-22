@@ -323,7 +323,7 @@ A local development setup is not suitable for production. Three areas require de
 
 ### Encryption
 
-**In local development Ragen starts with no key provider and stores message content in plaintext. A deployed one does not.** Outside `NODE_ENV=development`, a process with no encryption provider refuses to start: `apps/api` exits, `apps/web` serves a blocking page, and every content write throws. That is deliberate — the alternative silently writes readable messages until somebody thinks to check.
+**In local development Ragen starts with no key provider and stores message content in plaintext. A deployed one does not.** A process needs an encryption provider unless it is plainly not a deployment: `NODE_ENV=development` or `test`, or `TARGET_ENV` set to `local`, `test`, `e2e` or `ci`. Anywhere else — **including a build that simply never set `TARGET_ENV`** — a missing provider stops it: `apps/api` exits, `apps/web` serves a blocking page, and every content write throws. That is deliberate — the alternative silently writes readable messages until somebody thinks to check.
 
 Set `ENCRYPTION_PROVIDER` to one of the following values and supply the matching key material:
 

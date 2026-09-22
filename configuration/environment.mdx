@@ -49,7 +49,7 @@ One variable selects an implementation for each provider, and that choice determ
     Choose your encryption backend with `ENCRYPTION_PROVIDER`. When unset, Ragen auto-detects from whichever credentials are present, in priority order: Scaleway → KMS → local.
 
     <Warning>
-      Encryption is opt-in and off by default in local development. On staging and production (`TARGET_ENV=staging` or `production`), a deployment with no encryption provider configured will refuse to start unless you set `ALLOW_UNENCRYPTED=1` — which is logged as a critical security event. Set a provider before going live.
+      Encryption is opt-in and off by default in local development. A process needs an encryption provider unless it is plainly not a deployment: `NODE_ENV=development` or `test`, or `TARGET_ENV` set to `local`, `test`, `e2e` or `ci`. Anywhere else — **including a build that simply never set `TARGET_ENV`** — a missing provider stops it, unless you set `ALLOW_UNENCRYPTED=1` — which is logged as a critical security event. Set a provider before going live. See [Encryption](/security/encryption).
     </Warning>
 
     <Tabs>
