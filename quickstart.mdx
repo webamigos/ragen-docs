@@ -4,15 +4,15 @@ sidebarTitle: 'Quick Start'
 description: 'Scaffold a local Ragen AI instance with create-ragen-app, start your services, and ask your first question of your own documents in under ten minutes.'
 ---
 
-Ragen AI is self-hosted, so getting started means getting an instance running on your own machine. One command — `npx create-ragen-app` — scaffolds the entire stack locally: Postgres, Qdrant, the model gateway, and all four applications. Budget about ten minutes, most of it Docker pulling images.
+Ragen AI is self-hosted, so getting started means getting an instance running on your own machine. One command — `npx create-ragen-app` — scaffolds the entire stack locally: Postgres, Qdrant, Redis, Docling and all five applications. Budget about ten minutes, most of it Docker pulling images.
 
 ## Prerequisites
 
 Before you begin, make sure you have the following in place:
 
-- **Node.js 24.x** — the installer checks your version before it clones anything. Running on an older version produces a tree that fails later, far from the actual cause.
+- **Node.js `^24.15.0 || >=26.0.0`** — the installer checks your version before it clones anything. It is a range rather than a floor: 24.0–24.14 and all of 25 fail `npm install` on a transitive engine constraint, far from the actual cause.
 - **Docker and Docker Compose** — both must be running. The backing services (Postgres, Qdrant, Redis, Docling) all run in containers.
-- **~8 GB of RAM** available to Docker. Document parsing is the hungry part; you can drop Docling later if you need to trim memory.
+- **8 GB of RAM** available to Docker. The containers idle at about 900 MB together — document parsing is most of it — so the rest is headroom for parsing under load and for the apps. [What the stack actually costs](/self-hosting#what-the-stack-actually-costs) has the breakdown, including how to run a smaller stack.
 - **An LLM API key** — OpenAI or Anthropic to start chatting immediately. You can also point Ragen at models on your own hardware, but that is separate deployment work.
 
 No GPU is required unless you choose to serve models locally.
@@ -31,15 +31,25 @@ No GPU is required unless you choose to serve models locally.
       If you would rather have a `ragen` command on your `PATH`, `npm i -g ragen-cli` provides one and `ragen create my-ragen-app` runs the same wizard with the same flags. See the [CLI](/cli) page.
     </Note>
 
-    The wizard clones the repository, generates every secret it safely can, prompts you for a model provider key, asks how you want storage and encryption configured, starts the backing services in Docker, and runs the first-time setup — the Prisma client, schema migrations, and the seed data. It does **not** start the applications themselves; that is the next step.
+    The wizard clones the repository, generates every secret it safely can, starts the backing services in Docker, and runs the first-time setup — the Prisma client, schema migrations, and the seed data. It does **not** start the applications themselves; that is the next step.
+
+    Five questions, in this order:
+
+    | Question | Default |
+    |---|---|
+    | Mask personal data with Presidio? | **no** — it adds two containers and about 1 GB |
+    | Which engine runs background jobs? | **BullMQ**, which is what this install's `docker-compose.yml` can run. Temporal is an adapter you host yourself |
+    | Where are uploaded documents stored? | local disk; S3 asks for bucket, region, endpoint and keys |
+    | Encrypt messages and documents at rest? | a generated local key, AWS KMS, Scaleway Key Manager, or none — see [Encryption](/security/encryption) |
+    | Which LLM provider powers chat? | OpenAI or Anthropic, then the key. It writes a matching route table |
 
     <Tip>
       Several flags let you control what the installer does:
 
       | Flag | Effect |
       |------|--------|
-      | `--yes` | Accepts every default without prompting |
-      | `--provider=openai` | Reads your key from `OPENAI_API_KEY` instead of asking for it |
+      | `--yes` | Answers every question with its default: no PII masking, BullMQ, files on local disk, and encryption **on** with a generated key |
+      | `--provider=openai` | `openai` or `anthropic`. Reads the key from `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` rather than prompting — and, like `--yes`, takes the default for every other question too. An unknown value is rejected rather than ignored |
       | `--skip-docker` | Skips starting Docker services (run them yourself) |
       | `--skip-install` | Skips `npm install` and the Prisma setup steps |
       | `--ref=<branch>` | Clones a branch other than `main` |
@@ -74,6 +84,14 @@ No GPU is required unless you choose to serve models locally.
         npm run admin:dev    # http://localhost:3200
         ```
       </Tab>
+      <Tab title="MCP server (optional)">
+        ```bash
+        cd my-ragen-app
+        npm run dev --workspace=@ragenai/mcp   # http://localhost:3300/mcp
+        ```
+
+        Only needed to reach your assistants from Claude Desktop, Cursor or another MCP client. It forwards to the API, so start that first. See [MCP Server](/integrations/mcp-server).
+      </Tab>
     </Tabs>
 
     <Warning>
@@ -92,6 +110,7 @@ No GPU is required unless you choose to serve models locally.
     | `api:dev` | http://localhost:3001 | REST API and OpenAI-compatible surface |
     | `worker:dev` | — | Async document ingestion |
     | `admin:dev` | http://localhost:3200 | Platform admin panel (optional) |
+    | `@ragenai/mcp` | http://localhost:3300/mcp | MCP endpoint for external clients (optional) |
   </Step>
 
   <Step title="Create your first account">

@@ -7,7 +7,9 @@ description: 'Enable AES-256-GCM envelope encryption for conversation threads at
 Ragen offers opt-in AES-256-GCM envelope encryption for conversation data at rest. Each conversation thread gets its own data encryption key, which is itself encrypted by a master key held in your key provider. The master key never leaves your control.
 
 <Warning>
-  Encryption is **off by default**. With no key provider configured, Ragen starts normally and stores message content in plaintext. Local development works this way intentionally, but a production deployment must configure a provider explicitly. Verify that new threads are being encrypted by checking the SQL query in the [Verifying encryption is active](#verifying-encryption-is-active) section below.
+  Encryption is **off by default in local development only**. With no key provider configured, a development process starts and stores message content in plaintext — intentionally, so a fresh clone runs without a cloud account. A deployed one behaves differently: it refuses to start rather than write plaintext, unless `ALLOW_UNENCRYPTED=1` waives it deliberately.
+
+  A process needs an encryption provider unless it is plainly not a deployment: `NODE_ENV=development` or `test`, or `TARGET_ENV` set to `local`, `test`, `e2e` or `ci`. Anywhere else — **including a build that simply never set `TARGET_ENV`** — a missing provider stops it: `apps/api` exits, `apps/web` serves a blocking page, and every content write throws. Verify that new threads are being encrypted with the SQL query in [Verifying encryption is active](#verifying-encryption-is-active) below.
 </Warning>
 
 ## Choosing a key provider
@@ -20,7 +22,7 @@ Set `ENCRYPTION_PROVIDER` to one of the following values and supply the required
 | `kms` | AWS KMS | `AWS_KMS_KEY_ID` (plus existing `AWS_*` credentials) |
 | `local` | Local master key — **development only** | `ENCRYPTION_MASTER_KEY` |
 
-If you leave `ENCRYPTION_PROVIDER` unset, Ragen auto-detects a provider by checking in order: Scaleway → AWS KMS → local. With none configured, encryption remains off.
+If you leave `ENCRYPTION_PROVIDER` unset, Ragen auto-detects a provider by checking in order: Scaleway → AWS KMS → local. With none configured, encryption stays off in development and the process refuses to start anywhere else — the boundary in the warning at the top of this page.
 
 <Warning>
   The `local` provider is for development only. Do not use `ENCRYPTION_MASTER_KEY` as your sole encryption backend in production — it stores the master key on the same machine as the data it protects.
