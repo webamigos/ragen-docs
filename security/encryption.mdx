@@ -22,7 +22,7 @@ Set `ENCRYPTION_PROVIDER` to one of the following values and supply the required
 | `kms` | AWS KMS | `AWS_KMS_KEY_ID` (plus existing `AWS_*` credentials) |
 | `local` | Local master key — **development only** | `ENCRYPTION_MASTER_KEY` |
 
-If you leave `ENCRYPTION_PROVIDER` unset, Ragen auto-detects a provider by checking in order: Scaleway → AWS KMS → local. With none configured, encryption remains off.
+If you leave `ENCRYPTION_PROVIDER` unset, Ragen auto-detects a provider by checking in order: Scaleway → AWS KMS → local. With none configured, encryption stays off in development and the process refuses to start anywhere else — the boundary in the warning at the top of this page.
 
 <Warning>
   The `local` provider is for development only. Do not use `ENCRYPTION_MASTER_KEY` as your sole encryption backend in production — it stores the master key on the same machine as the data it protects.

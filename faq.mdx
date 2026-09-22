@@ -138,7 +138,7 @@ This page answers the questions that come up most often when getting started wit
   </Accordion>
 
   <Accordion title="Is conversation data encrypted?">
-    Encryption at rest is available but **opt-in**. Without a key provider configured, Ragen starts normally and stores message content unencrypted. That keeps local development simple, but a production install must configure a provider.
+    Encryption at rest is **opt-in in development and mandatory outside it**. Without a key provider configured, a development process starts and stores message content unencrypted, which keeps a fresh clone simple. Anywhere else — `NODE_ENV` other than `development`/`test`, and `TARGET_ENV` either unset or naming a real environment — a missing provider stops the process rather than writing plaintext, unless `ALLOW_UNENCRYPTED=1` waives it as a logged, deliberate choice. See [Encryption](/security/encryption).
 
     Ragen supports AES-256-GCM encryption using envelope encryption: each conversation thread gets its own key, itself encrypted by a master key in your chosen key provider. Set `ENCRYPTION_PROVIDER` to one of:
 
