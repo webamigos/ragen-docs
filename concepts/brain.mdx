@@ -163,7 +163,7 @@ Brain never does this on its own. It is always a person's decision, per document
 
 ### Uploading into Brain alone
 
-**Upload into Brain** stores and parses files without indexing them. They show as **In Brain — not searchable**: you can extract pages from them, and nothing in them can be retrieved or cited until a page built from them is published. This is the way to curate a sensitive corpus before any of it can reach an answer.
+**Upload into Brain** stores and parses files without indexing them. They show as **In Brain — not searchable**: you can extract pages from them, and while a document stays staged nothing in it can be retrieved or cited — only a published page built from it can reach an answer. This is the way to curate a sensitive corpus before any of it can reach an answer. The protection lasts only as long as the document stays out of retrieval: sending it to the knowledge base (below) makes the whole document searchable.
 
 To index a staged document as an ordinary one, use **Send to knowledge base**. The same action is offered on the Knowledge page and does not depend on the `brain` flag, so staged files are never stranded if Brain is switched off.
 
@@ -241,7 +241,7 @@ A run that hits either ceiling stops, and the documents it did not reach get an 
 
 ## Current limits
 
-- **Contradictions are looked for between pages with the same title.** Two documents that name one subject differently — "Leave" and "Annual leave" — are not compared. Merging the pages in review is how you tell Brain they are the same subject.
+- **Contradictions are looked for between pages with the same title.** Two documents that name one subject differently — "Leave" and "Annual leave" — are not compared, and the check runs only when extraction writes one of the two pages, so merging them in review does not trigger it either. Review differently titled pages on the same subject yourself; merging them afterwards keeps one page, but does not check its sources against each other.
 - **Verification is read-only.** A page shows its verification interval and last verification when they are set, and the **Stale** finding fires when the interval lapses, but the panel cannot set an interval or record a verification yet.
 - **A page's status does not turn to Stale by itself.** Staleness is reported as a **Stale** finding on the approved page.
 - **Findings cannot be dismissed from the panel yet.** The computed ones close on their own once their cause is fixed.
