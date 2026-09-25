@@ -163,7 +163,7 @@ The profile starts three services:
 
 | Service | What it does |
 |---|---|
-| `rustfs` | Serves S3 on port `59000` and a web console on `59001` (`RUSTFS_PORT` and `RUSTFS_CONSOLE_PORT` change them) |
+| `rustfs` | Serves S3 on port `59000` and a web console on `59001`. `RUSTFS_PORT` and `RUSTFS_CONSOLE_PORT` change them — if you change `RUSTFS_PORT`, change the port in `S3_ENDPOINT_URL` to match, or uploads cannot reach the store |
 | `rustfs-volume-init` | Hands the data volume to the user RustFS runs as. It runs once and exits |
 | `rustfs-bucket-init` | Creates the `ragen` bucket if it does not exist. It runs once and exits |
 

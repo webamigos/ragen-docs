@@ -81,7 +81,7 @@ So `http://localhost:9005/mcp` cannot be saved. The refusal reads *"That address
 
 ### A host your deployment vouches for
 
-Some private networks cannot be reached through RFC 1918 addresses. Railway's `*.railway.internal` names are an example. They resolve to an RFC 1918 address and to an IPv6 unique-local one (`fd…`), and a service may be able to reach only the IPv6 one. Ragen refuses unique-local addresses even with the box ticked, because cloud metadata services live there too (`fd00:ec2::254` on EC2).
+Some private networks cannot be reached through RFC 1918 addresses. Railway's private network is an example: its `*.railway.internal` names resolve to an IPv6 unique-local address (`fd…`), and that may be the only address a service can reach, even where an IPv4 one is also published. Ragen refuses unique-local addresses even with the box ticked, because cloud metadata services live there too (`fd00:ec2::254` on EC2).
 
 For a host like that, list it in `CONNECTOR_TRUSTED_HOSTS`. Set it on the web app, the API and the admin panel:
 

@@ -225,7 +225,7 @@ Setting local model targets closes most outbound traffic, but several other path
 Switching to a local model can change behaviour in ways that are not obvious errors. Know what to look for before you commit to a model.
 
 <Accordion title="Structured output (multi-query expansion)">
-  Multi-query expansion asks the model to return a JSON object that matches a schema, and so do Brain extraction, RAG scoring and the guardrail policy judge. **The schema is sent only when the route sets `structuredOutputs: true`.** Without it, the model is asked for plain JSON and guesses the shape. See [Structured outputs](/configuration/model-gateway#structured-outputs).
+  Multi-query expansion asks the model to return a JSON object that matches a schema, and so do Brain extraction, RAG scoring and the guardrail policy judge. **Ragen sends the schema only when you set `structuredOutputs: true` on the route.** Without the flag, Ragen asks the model for plain JSON, and the model has to guess the shape. See [Structured outputs](/configuration/model-gateway#structured-outputs).
 
   With the flag on, vLLM constrains generation to the schema natively. Ollama supports `response_format`, but coverage varies by model and version.
 

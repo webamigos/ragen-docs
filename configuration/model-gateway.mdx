@@ -160,7 +160,7 @@ routes:
     structuredOutputs: true
 ```
 
-The field is off by default, because an endpoint that does not understand `response_format: { type: "json_schema" }` may reject the call. With it off, the schema is dropped and the model is asked for plain JSON, so it has to guess the shape. That fails without an obvious error: before the shipped Scaleway route had this line, Mistral answered with its own field names, and every Brain extraction failed validation.
+The field is off by default, because an endpoint that does not understand `response_format: { type: "json_schema" }` may reject the call. If you leave it off, Ragen drops the schema and asks the model for plain JSON, so the model has to guess the shape. That fails without an obvious error: before the shipped Scaleway route had this line, Mistral answered with its own field names, and every Brain extraction failed validation.
 
 Turn it on for any upstream that supports JSON Schema response formats, such as vLLM or Scaleway's Generative APIs. Check your upstream's documentation for `json_schema` support before you enable it. The shipped `mistral-small-3.2` route has it, and so does the route `create-ragen-app` writes when you choose Scaleway. Native providers (`openai`, `anthropic`, `azure`, `vertex`, `bedrock`) do not need it.
 
