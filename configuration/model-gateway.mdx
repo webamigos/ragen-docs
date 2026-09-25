@@ -147,6 +147,23 @@ LLM_OLLAMA_HEADERS={"x-example":"1"}   # optional
 
 That is the whole integration. A new upstream is a route and two variables — no code change.
 
+#### Structured outputs
+
+Some calls ask the model for JSON that matches a schema: multi-query expansion, Brain extraction, RAG scoring and optimization suggestions, and the guardrail policy judge. On an `openai-compatible` route, Ragen sends that schema only if the route says the upstream accepts it:
+
+```yaml
+routes:
+  mistral-small-3.2:
+    provider: openai-compatible
+    connection: scaleway
+    model: mistral-small-3.2-24b-instruct-2506
+    structuredOutputs: true
+```
+
+The field is off by default, because an endpoint that does not understand `response_format: { type: "json_schema" }` may reject the call. With it off, the schema is dropped and the model is asked for plain JSON, so it has to guess the shape. That fails without an obvious error: before the shipped Scaleway route had this line, Mistral answered with its own field names, and every Brain extraction failed validation.
+
+Turn it on for any upstream that supports JSON Schema response formats, such as vLLM or Scaleway's Generative APIs. Check your upstream's documentation for `json_schema` support before you enable it. The shipped `mistral-small-3.2` route has it, and so does the route `create-ragen-app` writes when you choose Scaleway. Native providers (`openai`, `anthropic`, `azure`, `vertex`, `bedrock`) do not need it.
+
 ### Per model, not per deployment
 
 `connection` is a property of the route, so different models can come from different places at once: a local vLLM for the cheap ones, a hosted API for the hard ones, a gateway in front of a third. Ragen does not care that they differ.

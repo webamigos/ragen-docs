@@ -9,7 +9,7 @@ Ragen Brain turns the documents in your knowledge base into **knowledge pages** 
 The part that matters most is what Brain does *not* do: nothing it writes reaches chat on its own. A page is a candidate until a person approves it, and it is retrievable only after a person publishes it. Publishing can be undone at any time.
 
 <Note>
-  Brain is behind the `brain` feature flag, which is **off by default**. Only owners and admins of an organization where the flag is on can open it. See [Turning Brain on](#turning-brain-on).
+  Brain is behind the `brain` feature flag, which is **off by default**. By default only owners and admins of an organization where the flag is on can open it. See [Turning Brain on](#turning-brain-on).
 </Note>
 
 ## How it works
@@ -39,7 +39,27 @@ The flag is resolved like every other feature flag in Ragen: an organization ove
 - **For one organization** — pick the organization, set **Ragen Brain** to **Force on**, and save the overrides.
 - **For every organization on the installation** — set it under **Platform defaults**. A plan that sets the flag still wins over the platform default.
 
-With the flag on, the **Brain** item appears in the sidebar for that organization's **owners and admins**. Members never see it: every Brain route answers them with a 404, so a disabled feature and a missing one look the same. A platform administrator is not let in by that role alone either — Brain holds the customer's own knowledge.
+With the flag on, the **Brain** item appears in the sidebar for that organization's **owners and admins**. Members do not see it unless you [let them browse](#letting-members-browse): every Brain route answers them with a 404, so a disabled feature and a missing one look the same. A platform administrator is not let in by that role alone either — Brain holds the customer's own knowledge.
+
+Three more features on the same page change what Brain allows:
+
+| Feature | Default | Effect |
+|---|---|---|
+| **Ragen Brain: curate (extract, review, publish)** | on | Off, Brain is [read-only for everyone](#freezing-brain) |
+| **Ragen Brain: members may browse (read-only, sees every page)** | off | On, [members can browse](#letting-members-browse) Brain, read-only |
+| **Ragen Brain: the operator's assistant** | off | On, Brain shows the [operator's assistant](#the-operators-assistant) |
+
+### Freezing Brain
+
+Turn **Ragen Brain: curate** off to make Brain read-only for everyone, owners and admins included. Nobody can extract, review, publish, upload into Brain or download a bundle, and a notice explains why the controls are missing. Every action is refused on the server as well, so hiding a button is never the only protection. Pages already published stay in the knowledge base. Turn the feature back on to start curating again.
+
+### Letting members browse
+
+Turn **Ragen Brain: members may browse** on to let every member of the organization open Brain, read-only. Members never get write access: they cannot extract, review, publish or export, whatever the other features say.
+
+<Warning>
+  **This decides what members can read, so it is not just a convenience setting.** A page quotes the documents it was built from. A member who can browse Brain sees every page, including quotes from documents their own access would not open. Turn it on only for an organization where every member may read the whole corpus, such as a showcase organization.
+</Warning>
 
 <Info>
   Turning the flag off hides the panel and stops Brain's background jobs. Nothing is deleted. Pages already published stay in the knowledge base and keep being cited, and a document uploaded into Brain alone can still be sent to the knowledge base from the Knowledge page.
@@ -214,13 +234,31 @@ ragen-brain-2026-09-24.zip
 
 Only **Approved** and **Stale** pages are exported, and only those with an owner, an access list and at least one source. The bar above the list counts what is ready and why the rest is left out — **Not approved**, **No owner**, **Open to nobody**, **No sources**.
 
+## The operator's assistant
+
+The operator's assistant is a chat panel beside every Brain screen. Open it with **Assistant**. It reads what you are looking at — a page, a finding, the graph selection, a document — and answers with the quotes its answer rests on, linking every page it names. It suggests questions that fit the screen, such as *Is this page right? Check each claim against its quote* on a candidate page, or *Explain the open contradictions* on the findings list.
+
+It is behind the **Ragen Brain: the operator's assistant** feature, which is off by default and has no effect unless **Ragen Brain** is on too.
+
+**It never changes anything by itself.** When it suggests a change, it shows a **Suggested change** card. Nothing happens until a person applies the card, and applying it runs the same action as the button in Brain, under that person's name. The history therefore still names a person, and a change that widens access asks for confirmation just as it does in the panel. The assistant can suggest approving, rejecting, publishing or withdrawing pages (several at once), merging two pages, setting an owner, changing access and retrying an extraction.
+
+- **Who sees suggestions.** Only someone who may curate Brain gets suggestion cards. A member who is [browsing](#letting-members-browse) gets answers only.
+- **What it reads.** It reads Brain's data only — pages, quotes, findings, documents and decisions — through the same organization-scoped queries as the panel. It does not search the knowledge base or call connectors.
+- **Which model it uses.** It runs on the organization's default model, which must support tool calling. If it does not, the panel says so and links to the model setting.
+- **Rules and limits.** A turn goes through the same monthly usage limits, PII masking and guardrail rules as chat.
+- **Conversations.** They are kept, encrypted like chat threads, and listed under **Earlier conversations**. They do not appear in the chat thread list or in the public API.
+
 ## From the terminal
 
-The Ragen CLI has a read-only `ragen brain` command that reads the same data through the public API with an API key of an owner or admin: `next`, `doctor`, `findings`, `pages`, `graph`, `query` and `export`. Approving, merging and publishing stay in the panel, where the reviewer sees the sources and the access they are deciding about.
+The Ragen CLI has a read-only `ragen brain` command, available since `ragen-cli` 0.2.0. It reads the same data through the public API, using an API key that belongs to an owner or admin. Its subcommands are `next`, `doctor`, `findings`, `pages`, `graph`, `query` and `export`. Approving, merging and publishing stay in the panel, where the reviewer can see the sources and the access they are deciding about.
 
-<Note>
-  `ragen brain` is on `main` but not yet in a published release of `ragen-cli` — `0.1.0` predates it. See [CLI](/cli).
-</Note>
+```bash
+export RAGEN_API_URL=https://api.example.com
+export RAGEN_API_KEY=sk-...
+ragen brain next
+```
+
+See [CLI](/cli).
 
 ## Configuration
 

@@ -37,7 +37,7 @@ Google sign-in is available as an optional convenience. The sign-in button appea
 |---|---|
 | **Organizations** | View all organisations, manage members and roles, view settings, monitor usage, and review audit entries per organisation |
 | **Users** | Rename accounts, ban or unban users, grant or revoke the platform admin role |
-| **Features** | Set platform-wide feature flag defaults; see which layer (org override / plan / platform default / built-in) is resolving each flag for any org |
+| **Features** | Turn features on or off for one organisation or as platform defaults; see which layer (org override / plan / platform default / built-in) is resolving each one — see [Organization features](#organization-features) |
 | **Limits & Models** | Set storage ceilings, monthly token and cost caps, member caps, and model allowlists — per organisation and as platform defaults |
 | **RAG Settings** | Set the retrieval pipeline's per-organisation switches — multi-query expansion, document summaries, reranking — and the platform defaults for them. The matching page inside the main app (**Organization → RAG settings**) shows these read-only |
 | **API Keys** | View every API key on the installation with its organisation, project, creator, debug mode status, and last-used date; deactivate or permanently revoke any key |
@@ -58,6 +58,37 @@ The **Organizations** section shows every organisation on your installation. Eac
 <Note>
   Two membership changes are permanently refused: you cannot remove or demote the last owner of an organisation, and you cannot add an account that doesn't exist yet. The panel manages membership — it does not create accounts.
 </Note>
+
+## Organization features
+
+On the **Features** page, a feature is on or off for an organization. Each one is decided by the first of these four layers that sets it:
+
+1. an override for that organization;
+2. the organization's plan;
+3. the platform default;
+4. the built-in default.
+
+To change one organization, pick it at the top of the page, set the feature to **Force on** or **Force off**, and save. To change every organization that has no override, set it under **Platform defaults**.
+
+| Feature | Built-in default | What turning it off (or on) does |
+|---|---|---|
+| **Invite members** | off | On, owners and admins can invite people into the organization |
+| **Public chatbot** | off | On, the organization can use the embedded widget and the hosted public assistant page. Off also stops serving the ones that already exist |
+| **API access** | on | Off, the organization cannot create new API keys. Keys it already has keep working until you deactivate them under **API Keys** |
+| **MCP connectors** | on | Off, the organization cannot add or connect connectors |
+| **Custom assistant templates** | on | Off, the organization cannot create an assistant from a template |
+| **Voice dictation** | off | On, the composer shows a microphone. Off, transcription requests are refused |
+| **Public thread links** | off | On, people can share a thread by link. Off also stops links already shared from opening |
+| **Add and remove documents** | on | Off, the knowledge base is frozen: nobody can upload or delete documents. Chat keeps working |
+| **Create and delete projects** | on | Off, projects are frozen. Chat keeps working |
+| **Change organization settings** | on | Off, the organization's settings are read-only |
+| **Delete threads** | on | Off, nobody in the organization can delete a conversation: **Delete** disappears from the thread menu. Chat keeps working. This is meant for a showcase organization whose example threads every visitor should see. The public API's `DELETE /v1/threads/{id}` does not check this setting yet |
+| **Ragen Brain** | off | On, owners and admins can open [Ragen Brain](/concepts/brain) |
+| **Ragen Brain: curate (extract, review, publish)** | on | Off, Brain is read-only for everyone, owners and admins included — no extraction, review, publishing, uploads into Brain or bundle export |
+| **Ragen Brain: members may browse (read-only, sees every page)** | off | On, every member can browse Brain, read-only. **Read [what this discloses](/concepts/brain#letting-members-browse) before you turn it on** |
+| **Ragen Brain: the operator's assistant** | off | On, Brain shows the [operator's assistant](/concepts/brain#the-operators-assistant). It has no effect unless **Ragen Brain** is on too |
+
+The **Add and remove documents**, **Create and delete projects**, **Change organization settings** and **Delete threads** features exist so you can freeze an organization's content and configuration while its members can still read and ask questions. A showcase organization is the typical case.
 
 ## Managing API keys
 
