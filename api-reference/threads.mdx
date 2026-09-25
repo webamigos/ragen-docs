@@ -75,6 +75,18 @@ Both `POST /v1/threads/{id}` and `PATCH /v1/threads/{id}` accept `title` (Ragen 
 { "id": "thread-abc123", "object": "thread.deleted", "deleted": true }
 ```
 
+If the organization has **Delete threads** turned off, the request is refused with `403 Forbidden` and nothing is deleted:
+
+```json
+{
+  "statusCode": 403,
+  "message": "This organization cannot delete threads",
+  "error": "Forbidden"
+}
+```
+
+The same setting refuses `DELETE /v1/threads/{id}/messages/{message_id}` with the same response, because deleting every message empties a thread just as well. A platform administrator controls the setting in the admin panel — see [Organization features](/security/admin-panel#organization-features).
+
 ## Messages endpoints
 
 ```
