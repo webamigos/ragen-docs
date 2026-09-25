@@ -79,6 +79,27 @@ So `http://localhost:9005/mcp` cannot be saved. The refusal reads *"That address
 - a container name, if Ragen and the connector share a Docker network — that resolves to `172.x`, box ticked;
 - a public hostname over HTTPS in production, box unticked.
 
+### A host your deployment vouches for
+
+Some private networks cannot be reached through RFC 1918 addresses. Railway's private network is an example: its `*.railway.internal` names resolve to an IPv6 unique-local address (`fd…`), and that may be the only address a service can reach, even where an IPv4 one is also published. Ragen refuses unique-local addresses even with the box ticked, because cloud metadata services live there too (`fd00:ec2::254` on EC2).
+
+For a host like that, list it in `CONNECTOR_TRUSTED_HOSTS`. Set it on the web app, the API and the admin panel:
+
+```bash
+CONNECTOR_TRUSTED_HOSTS=ragen-mcp-rejestrio.railway.internal,.mcp.corp.example
+```
+
+- Separate entries with commas. `host.example` matches that host exactly. `.example`, with a leading dot, matches any subdomain of it, but not `example` itself.
+- Wildcards and IP ranges are ignored. List every host by name.
+- A catalogue entry pointing at a listed host connects without the address policy, just like a built-in connector's `MCP_*_SERVER_URL`. **Test connection** in the admin panel probes it the same way.
+
+The list is set in the environment by whoever runs the deployment. Nothing in the admin form can widen it.
+
+Two cases stay under the policy even when the server URL is trusted:
+
+- **The connector also talks to another host.** If its auth base URL is not on the list too, the trust does not apply. Otherwise it would also lift the policy from the address where users register their keys.
+- **`API_KEY_CUSTOM_HEADER` connectors.** Their URL is typed in by an organization user, not by you, so they are never trusted this way.
+
 <Warning>
   **A connector that carries a credential requires HTTPS, with no exception.**
   `API_KEY_BEARER` sends a user's own API key and `EXTERNAL_MCP` sends an OAuth

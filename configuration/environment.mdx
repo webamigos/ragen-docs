@@ -32,7 +32,7 @@ One variable selects an implementation for each provider, and that choice determ
         ```
       </Tab>
       <Tab title="s3">
-        Any S3-compatible object store. Leave `S3_ENDPOINT_URL` unset for real AWS S3, or set it to point at Cloudflare R2, Scaleway, MinIO, or Ceph.
+        Any S3-compatible object store. Leave `S3_ENDPOINT_URL` unset for real AWS S3, or set it to point at Cloudflare R2, Scaleway, MinIO, Ceph, or the [bundled RustFS](/configuration/storage#bundled-object-storage-rustfs).
 
         ```bash
         STORAGE_PROVIDER=s3
@@ -170,6 +170,12 @@ properly in [Model gateway](/configuration/model-gateway):
 
 There is no variable selecting a gateway mode any more: Ragen calls providers
 itself, and an external gateway is a route rather than a setting.
+
+## Connector Settings
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `CONNECTOR_TRUSTED_HOSTS` | Optional | — | Comma-separated hosts your deployment vouches for. A catalogue connector pointing at one connects without the private-address policy. Set it on the web app, the API and the admin panel. See [A host your deployment vouches for](/integrations/adding-a-connector#a-host-your-deployment-vouches-for). |
 
 ## Auth Settings
 

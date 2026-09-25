@@ -4,7 +4,7 @@ sidebarTitle: 'CLI'
 description: 'Install the Ragen command line with npm, scaffold an installation without leaving your terminal, and see which commands are coming next.'
 ---
 
-The Ragen CLI puts a `ragen` command on your `PATH`. It is early: one command does real work today, and it grows toward managing an installation — signing in, checking its health, moving documents in and out — without leaving your terminal.
+The Ragen CLI puts a `ragen` command on your `PATH`. It is early: two commands do real work today, and it grows toward managing an installation — signing in, checking its health, moving documents in and out — without leaving your terminal.
 
 ```bash
 npm install -g ragen-cli
@@ -24,6 +24,7 @@ The CLI asks for **Node.js 20 or newer**, which is deliberately lower than the *
 | Command | What it does |
 |---|---|
 | `ragen create [dir]` | Scaffolds a self-hosted Ragen installation |
+| `ragen brain <command>` | Reads [Ragen Brain](/concepts/brain#from-the-terminal) through the public API — `next`, `doctor`, `findings`, `pages`, `graph`, `query`, `export`. Needs `RAGEN_API_URL` and the API key of an owner or admin in `RAGEN_API_KEY` (or `--url` and `--api-key`). Since 0.2.0 |
 | `ragen help` | Lists every command, built or not |
 | `ragen version` | Prints the version of the CLI |
 

@@ -1,10 +1,10 @@
 ---
 title: 'Configuring Local and S3-Compatible Storage in Ragen AI'
 sidebarTitle: 'Storage'
-description: 'Store uploaded documents on the local filesystem by default, or switch to any S3-compatible provider for multi-replica and production deployments.'
+description: 'Store uploaded documents on the local filesystem by default, run the bundled RustFS object store yourself, or switch to any S3-compatible provider for multi-replica and production deployments.'
 ---
 
-Ragen stores every file you upload — documents, attachments, and parsed assets — using a pluggable storage backend. By default, files land on the local filesystem so a fresh installation works with no cloud account. When you are ready to run more than one replica or deploy to production, switching to S3-compatible object storage takes four environment variables.
+Ragen stores every file you upload — documents, attachments, and parsed assets — using a pluggable storage backend. By default, files land on the local filesystem so a fresh installation works with no cloud account. When you are ready to run more than one replica or deploy to production, switching to S3-compatible object storage takes four environment variables. If you want object storage without a cloud account, the repository's Compose file can start one for you: [RustFS](#bundled-object-storage-rustfs).
 
 ## Local Storage
 
@@ -120,6 +120,63 @@ Set `STORAGE_PROVIDER=s3` to use any S3-compatible object store. Ragen uses the 
   </Tab>
 </Tabs>
 
+## Bundled object storage: RustFS
+
+The repository's `docker-compose.yml` includes [RustFS](https://github.com/rustfs/rustfs), an S3-compatible object store, behind the opt-in `s3` profile. It gives you object storage on your own machine, with no cloud account. To Ragen it is an ordinary S3 store: `STORAGE_PROVIDER=s3`, pointed at `localhost`.
+
+### With the installer
+
+Answer **RustFS — self-hosted object storage, started with the stack** to the storage question in [`create-ragen-app`](/quickstart). The installer then:
+
+- generates an access key and a secret;
+- writes them to `.env` for Compose, and the same pair to `.env.local` as the `S3_*` variables the apps read;
+- starts the `s3` profile together with the rest of the stack.
+
+If you run the installer again in the same directory, it keeps the keys already in `.env`, because the store holds your files under those keys.
+
+### By hand
+
+Put the keys in two files: Compose reads `.env`, and the apps on the host read `.env.local`.
+
+```bash title=".env"
+RUSTFS_ACCESS_KEY=<a random key id>
+RUSTFS_SECRET_KEY=<a random secret>
+```
+
+```bash title=".env.local"
+STORAGE_PROVIDER=s3
+S3_ENDPOINT_URL=http://localhost:59000
+S3_FORCE_PATH_STYLE=true
+S3_REGION=us-east-1
+S3_BUCKET_NAME=ragen
+S3_ACCESS_KEY_ID=<same as RUSTFS_ACCESS_KEY>
+S3_SECRET_ACCESS_KEY=<same as RUSTFS_SECRET_KEY>
+```
+
+Then start the profile:
+
+```bash
+docker compose --profile s3 up -d
+```
+
+The profile starts three services:
+
+| Service | What it does |
+|---|---|
+| `rustfs` | Serves S3 on port `59000` and a web console on `59001`. `RUSTFS_PORT` and `RUSTFS_CONSOLE_PORT` change them — if you change `RUSTFS_PORT`, change the port in `S3_ENDPOINT_URL` to match, or uploads cannot reach the store |
+| `rustfs-volume-init` | Hands the data volume to the user RustFS runs as. It runs once and exits |
+| `rustfs-bucket-init` | Creates the `ragen` bucket if it does not exist. It runs once and exits |
+
+<Warning>
+  **Both files need the same key pair.** If `.env` and `.env.local` disagree, every upload fails with a signature error. If `.env` has no `RUSTFS_*` keys at all, RustFS starts with default keys that are written in `docker-compose.yml` for anyone to read. That is fine for a trial, but set your own keys before the store holds real documents.
+</Warning>
+
+<Note>
+  **Running the apps in containers too?** With `npm run ragen:up:everything`, the apps reach RustFS by its service name, not by `localhost`. Put the `S3_*` variables in `.env` as well, and set `S3_CONTAINER_ENDPOINT_URL=http://rustfs:9000`. The full-app Compose file uses it in place of `S3_ENDPOINT_URL`. The installer writes both for you.
+</Note>
+
+The bucket-init service always creates a bucket named `ragen`, so keep `S3_BUCKET_NAME=ragen` unless you create a different bucket yourself.
+
 ## Compatible Providers
 
 <CardGroup cols={2}>
@@ -131,6 +188,9 @@ Set `STORAGE_PROVIDER=s3` to use any S3-compatible object store. Ragen uses the 
   </Card>
   <Card title="Scaleway Object Storage" icon="cloud">
     S3-compatible European object storage. Requires `S3_FORCE_PATH_STYLE=1`.
+  </Card>
+  <Card title="RustFS" icon="box" href="#bundled-object-storage-rustfs">
+    Bundled with the repository's Compose file, behind the `s3` profile. Requires `S3_FORCE_PATH_STYLE=true`.
   </Card>
   <Card title="MinIO" icon="server">
     Self-hosted S3-compatible storage. Requires `S3_FORCE_PATH_STYLE=1`.

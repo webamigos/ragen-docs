@@ -139,6 +139,7 @@ Every service has a specific role in the stack. Removing one affects only the ca
 | Redis | Background jobs — it is the queue. Required by the worker, and by the web app and API, which enqueue into it | yes |
 | Docling | Local document parsing and OCR | yes |
 | Presidio | Personal-data detection — two containers behind the `pii` Compose profile | no |
+| RustFS | S3-compatible object storage for uploaded files, behind the `s3` profile. Only needed if you chose it over local disk or a cloud bucket — see [Storage](/configuration/storage#bundled-object-storage-rustfs) | no |
 | OpenTelemetry collector + Jaeger | Local tracing, behind the `observability` profile | no |
 
 <Note>
@@ -356,6 +357,8 @@ S3_ACCESS_KEY_ID=your-access-key
 S3_SECRET_ACCESS_KEY=your-secret-key
 S3_BUCKET_NAME=your-bucket
 ```
+
+To run the object store yourself, `docker compose --profile s3 up -d` starts the bundled RustFS. The installer sets it up if you choose **RustFS** as the storage answer. See [Storage](/configuration/storage#bundled-object-storage-rustfs).
 
 <Note>
   Use `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` — not `AWS_`-prefixed variables. The `AWS_` prefix is reserved for real AWS Bedrock and KMS configuration, which a deployment can use at the same time as non-AWS S3 storage.

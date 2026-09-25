@@ -37,11 +37,11 @@ No GPU is required unless you choose to serve models locally.
 
     | Question | Default |
     |---|---|
+    | Which LLM provider powers chat? | OpenRouter, Scaleway, OpenAI or Anthropic, then the key (Scaleway also asks for its project's base URL). It writes a matching route table. Anthropic has no embeddings endpoint, so on that key alone the knowledge base does not work, and the wizard tells you |
+    | Where are uploaded documents stored? | **local disk**. S3 asks for bucket, region, endpoint and keys. **RustFS** starts an object store with the stack and generates its keys — see [Storage](/configuration/storage#bundled-object-storage-rustfs) |
+    | Encrypt messages and documents at rest? | a generated local key, AWS KMS, Scaleway Key Manager, or none — see [Encryption](/security/encryption) |
     | Mask personal data with Presidio? | **no** — it adds two containers and about 1 GB |
     | Which engine runs background jobs? | **BullMQ**, which is what this install's `docker-compose.yml` can run. Temporal is an adapter you host yourself |
-    | Where are uploaded documents stored? | local disk; S3 asks for bucket, region, endpoint and keys |
-    | Encrypt messages and documents at rest? | a generated local key, AWS KMS, Scaleway Key Manager, or none — see [Encryption](/security/encryption) |
-    | Which LLM provider powers chat? | OpenAI or Anthropic, then the key. It writes a matching route table |
 
     <Tip>
       Several flags let you control what the installer does:
