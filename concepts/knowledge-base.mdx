@@ -86,6 +86,24 @@ Every time a document's content changes, Ragen AI creates a new version and re-i
 
 Rolling back appends a new version with the earlier content rather than deleting the intermediate versions, so you can always undo a rollback.
 
+## RAG readiness score
+
+A processed file can show a `RAG: NN` badge in the file list and grid. It is a score out of 100 that one LLM call gives the document when it is uploaded or re-processed. You can also recompute it from the file's menu with **Score for RAG**. The same number appears in **Version history** and as the current score in the **Optimize** tab.
+
+The rubric rewards question-and-answer prose: numbered headings, sections of 80–150 words, and sections that stand on their own. It reads the first 12,000 characters of the indexed text, about three pages.
+
+<Warning>
+  The score has not been validated against retrieval yet. Treat it as a hint about prose structure, not as a measure of how well Ragen AI will find the document.
+</Warning>
+
+Keep these limits in mind when you read it:
+
+- **Tables score low even when they are indexed well.** A spreadsheet or price list can barely earn three of the five criteria. Re-indexing spreadsheets into proper table chunks lowered their scores, even though the same kind of change measurably improved retrieval.
+- **Long documents are judged on their opening pages.**
+- **Scores are not comparable across document types.** Don't rank a price list against a policy document.
+
+Each score is one LLM call billed to your organization. A platform administrator can turn scoring off for the whole platform or for one organization under **Features** in the [admin panel](/security/admin-panel#organization-features). With it off, uploads skip the call, the badge and **Score for RAG** disappear, and **Optimize** still suggests improvements without showing a score.
+
 <Tip>
   Connect your Google Drive account to import entire folders at once — up to 200 files per import. Ragen AI fetches the files, processes them through the same pipeline, and keeps them organized in a matching folder structure inside your knowledge base.
 </Tip>

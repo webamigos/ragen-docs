@@ -83,6 +83,7 @@ To change one organization, pick it at the top of the page, set the feature to *
 | **Create and delete projects** | on | Off, projects are frozen. Chat keeps working |
 | **Change organization settings** | on | Off, the organization's settings are read-only |
 | **Delete threads** | on | Off, nobody can delete a conversation in the panel: **Delete** disappears from the thread menu. Chat keeps working. This is meant for a showcase organization whose example threads every visitor should see. The public API's `DELETE /v1/threads/{id}` does not check this setting yet |
+| **RAG readiness score (one LLM call per ingest)** | on | Off, uploads and re-processing skip the [readiness score](/concepts/knowledge-base#rag-readiness-score) call, **Score for RAG** disappears from the file menu, and no score is shown anywhere, including scores stored earlier. **Optimize** keeps working without a score |
 | **Ragen Brain** | off | On, owners and admins can open [Ragen Brain](/concepts/brain) |
 | **Ragen Brain: curate (extract, review, publish)** | on | Off, Brain is read-only for everyone, owners and admins included — no extraction, review, publishing, uploads into Brain or bundle export |
 | **Ragen Brain: members may browse (read-only, sees every page)** | off | On, every member can browse Brain, read-only. **Read [what this discloses](/concepts/brain#letting-members-browse) before you turn it on** |
