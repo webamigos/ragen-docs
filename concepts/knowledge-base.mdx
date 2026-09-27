@@ -88,7 +88,7 @@ Rolling back appends a new version with the earlier content rather than deleting
 
 ## RAG readiness score
 
-A processed file can show a `RAG: NN` badge in the file list and grid. It is a score out of 100 that one LLM call gives the document when it is uploaded or re-processed. You can also recompute it from the file's menu with **Score for RAG**. The same number appears in **Version history** and as the current score in the **Optimize** tab.
+A file can show a `RAG NN/100` badge in the file list and grid. It is a score out of 100 that one LLM call gives the document. The score is computed on request: when you choose **Score for RAG** in the file's menu, or when **Optimize** analyses the document. Uploading or re-processing a file does not score it, so a new file shows no badge until someone asks. The same number appears in **Version history** and as the current score in the **Optimize** tab.
 
 The rubric rewards question-and-answer prose: numbered headings, sections of 80–150 words, and sections that stand on their own. It reads the first 12,000 characters of the indexed text, about three pages.
 
@@ -102,7 +102,10 @@ Keep these limits in mind when you read it:
 - **Long documents are judged on their opening pages.**
 - **Scores are not comparable across document types.** Don't rank a price list against a policy document.
 
-Each score is one LLM call billed to your organization. A platform administrator can turn scoring off for the whole platform or for one organization under **Features** in the [admin panel](/security/admin-panel#organization-features). With it off, uploads skip the call, the badge and **Score for RAG** disappear, and **Optimize** still suggests improvements without showing a score.
+Each score is one LLM call billed to your organization. Two switches under **Features** in the [admin panel](/security/admin-panel#organization-features) control it, for the whole platform or for one organization:
+
+- **Score every upload** makes each upload and re-process score the document automatically, as it did before scoring became on request. It is off by default, because it costs one call per file and the score predicts how well a single document will be retrieved only weakly. It is most useful beside an edit, as the before and after in **Optimize**.
+- **RAG readiness score** turns scoring off altogether. With it off, nothing is scored, even with **Score every upload** on: the badge and **Score for RAG** disappear, and **Optimize** still suggests improvements without showing a score.
 
 <Tip>
   Connect your Google Drive account to import entire folders at once — up to 200 files per import. Ragen AI fetches the files, processes them through the same pipeline, and keeps them organized in a matching folder structure inside your knowledge base.
