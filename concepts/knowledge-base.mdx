@@ -88,7 +88,7 @@ Rolling back appends a new version with the earlier content rather than deleting
 
 ## RAG readiness score
 
-A file can show a `RAG NN/100` badge in the file list and grid. It is a score out of 100 that one LLM call gives the document. The score is computed on request: when you choose **Score for RAG** in the file's menu, or when **Optimize** analyses the document. Uploading or re-processing a file does not score it, so a new file shows no badge until someone asks. The same number appears in **Version history** and as the current score in the **Optimize** tab.
+A file can show a `RAG NN/100` badge in the file list and grid. It is a score out of 100 that one LLM call gives the document. By default, the score is computed on request: when you choose **Score for RAG** in the file's menu, or when **Optimize** analyses the document. Uploading or re-processing a file does not score it unless an administrator has turned on **Score every upload** (below), so a new file shows no badge until someone asks. The same number appears in **Version history** and as the current score in the **Optimize** tab.
 
 The rubric rewards question-and-answer prose: numbered headings, sections of 80–150 words, and sections that stand on their own. It reads the first 12,000 characters of the indexed text, about three pages.
 
