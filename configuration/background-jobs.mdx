@@ -28,8 +28,17 @@ Which engine carries those jobs is a deployment choice.
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `WORKER_CONCURRENCY` | Optional | `20` | Jobs in flight per queue, on `bullmq` |
+| `DOCLING_MAX_CONCURRENCY` | Optional | `4` | Document ingests in flight across **every** worker replica, on `bullmq` |
 
-**It counts whole jobs, not steps.** One document ingest is a single job made of roughly twenty sequential steps — download, parse, chunk, summarize, mask, embed, store. So `WORKER_CONCURRENCY=20` means twenty *documents* at a time, not twenty operations.
+**It counts whole jobs, not steps.** One document ingest is a single job made of roughly twenty sequential steps — download, parse, chunk, summarize, mask, embed, store. So `WORKER_CONCURRENCY=20` means twenty jobs at a time, not twenty operations.
+
+### Document ingest has its own ceiling
+
+Almost every document goes through Docling, and a Docling container converts two documents at a time and holds the rest in memory. So document ingest has a second, lower limit: `DOCLING_MAX_CONCURRENCY`, **4** by default. It applies to the whole deployment, not to one worker. The worker sets it in Redis, so two replicas at `WORKER_CONCURRENCY=20` still run at most four ingests between them, and the rest wait in the queue. Other jobs, such as scraping and document generation, are not affected.
+
+Before this ceiling, a burst of uploads sent twenty documents per worker replica to Docling at once. With `DOCLING_STRICT=1`, the ones Docling could not answer in time failed permanently.
+
+Raise it only when Docling can take more: more CPU, and more conversion workers (`DOCLING_SERVE_ENG_LOC_NUM_WORKERS`). A value around twice Docling's worker count keeps it busy without queueing inside it. Set it the same on every worker replica: the last worker to start wins.
 
 That distinction is the one worth getting right, because it decides what a bulk upload feels like:
 
@@ -49,7 +58,7 @@ On 2026-09-16 we ran 416 real ingests of ~500-word documents across both runtime
 | `bullmq`, concurrency 10 | 24.9s | 40.9s | 18.5s |
 | `bullmq`, concurrency 20 (the default) | 12.3s | 29.6s | 0.7s |
 
-Read the last column first: at 10, half the batch spent eighteen seconds waiting for a free slot rather than being processed. **That measurement is why the default is 20** — it was 10 until this run compared the two. The parsing and embedding times themselves were identical in all three configurations. **The difference is the concurrency ceiling, not the engine** — with a single document, `bullmq` is the faster of the two (6.9s against 10.0s).
+Read the last column first: at 10, half the batch spent eighteen seconds waiting for a free slot rather than being processed. **That measurement is why the default is 20** — it was 10 until this run compared the two. It predates the ingest ceiling above: the documents were short text files, and today at most `DOCLING_MAX_CONCURRENCY` of them would be ingesting at once. The parsing and embedding times themselves were identical in all three configurations. **The difference is the concurrency ceiling, not the engine** — with a single document, `bullmq` is the faster of the two (6.9s against 10.0s).
 
 <Warning>
   These numbers size a deployment; they are not a throughput guarantee. They come from one machine on one afternoon, with short text documents. Your own documents, parser, embedding provider and network will move every figure here. A 200-page PDF parsed by Docling is minutes of work, not seconds.
@@ -58,8 +67,9 @@ Read the last column first: at 10, half the batch spent eighteen seconds waiting
 ### How to pick a number
 
 1. Start from the largest burst you expect — a customer's initial import, a folder re-index, a Google Drive sync.
-2. Raise `WORKER_CONCURRENCY` to roughly that number, then check your model provider's rate limits. Every concurrent ingest issues embedding and summary calls; the ceiling that matters is usually the provider's, not your worker's.
-3. Add worker replicas rather than raising the number indefinitely. `WORKER_CONCURRENCY` is per worker process, so three replicas at 20 give you 60 documents in flight.
+2. For document ingest, the number that decides throughput is `DOCLING_MAX_CONCURRENCY`, and behind it Docling's own capacity. Raise it together with Docling's CPU and worker count, not on its own.
+3. Raise `WORKER_CONCURRENCY` for everything else, then check your model provider's rate limits. Every concurrent job issues model calls; the ceiling that matters is usually the provider's, not your worker's.
+4. Add worker replicas rather than raising the number indefinitely. `WORKER_CONCURRENCY` is per worker process, so three replicas at 20 give you 60 jobs in flight. Ingest stays at `DOCLING_MAX_CONCURRENCY` across all three.
 
 The two nightly maintenance jobs are pinned to one at a time regardless of this setting, across every replica, so they cannot overlap.
 

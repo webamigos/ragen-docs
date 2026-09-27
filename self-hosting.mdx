@@ -235,7 +235,7 @@ The following flags are **off by default** — set them to `1` to enable:
 | Flag | Effect |
 |------|--------|
 | `FEATURE_FLAG_RERANKING` | Re-score retrieved chunks with a cross-encoder reranker before generating the answer. Requires `SCW_API_BASE` and `SCW_API_KEY` for the default Scaleway reranker, so it stays off until you supply credentials. |
-| `DOCLING_STRICT` | Fail document ingestion rather than fall back to a parser that sends documents to an external model. Set this for any deployment where documents must not leave your network. |
+| `DOCLING_STRICT` | Fail document ingestion rather than fall back to a parser that sends documents to an external model. Set this for any deployment where documents must not leave your network. A Docling that is restarting or saturated is waited out for about six minutes before a file fails. |
 
 The following flag is **on by default** — set it to `0` to disable:
 
