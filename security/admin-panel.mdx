@@ -82,7 +82,7 @@ To change one organization, pick it at the top of the page, set the feature to *
 | **Add and remove documents** | on | Off, the knowledge base is frozen: nobody can upload or delete documents. Chat keeps working |
 | **Create and delete projects** | on | Off, projects are frozen. Chat keeps working |
 | **Change organization settings** | on | Off, the organization's settings are read-only |
-| **Delete threads** | on | Off, nobody can delete a conversation in the panel: **Delete** disappears from the thread menu. Chat keeps working. This is meant for a showcase organization whose example threads every visitor should see. The public API's `DELETE /v1/threads/{id}` does not check this setting yet |
+| **Delete threads** | on | Off, nobody in the organization can delete a conversation: **Delete** disappears from the thread menu. Chat keeps working. The public API refuses to delete a thread or a message with `403`. This is meant for a showcase organization whose example threads every visitor should see |
 | **Ragen Brain** | off | On, owners and admins can open [Ragen Brain](/concepts/brain) |
 | **Ragen Brain: curate (extract, review, publish)** | on | Off, Brain is read-only for everyone, owners and admins included — no extraction, review, publishing, uploads into Brain or bundle export |
 | **Ragen Brain: members may browse (read-only, sees every page)** | off | On, every member can browse Brain, read-only. **Read [what this discloses](/concepts/brain#letting-members-browse) before you turn it on** |
