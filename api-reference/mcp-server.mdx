@@ -28,7 +28,7 @@ Authorization: Bearer YOUR_API_KEY
 
 ## Available Tools
 
-The Ragen MCP Server exposes two tools today.
+The Ragen MCP Server exposes three tools. Each call runs with the permissions of the person who created the API key — see [Authentication](/api-reference/authentication#whose-permissions-a-key-carries).
 
 <Note>
   **Omit `assistant_id` unless you have one.** The API key carries a scope: a key created for one assistant answers for it without being told, and a key scoped to the whole knowledge base rejects a request naming any assistant with `403`. `ragen_list_assistants` shows what the key you connected with can reach. See [Authentication](/api-reference/authentication#what-a-key-can-reach).
@@ -125,11 +125,51 @@ The Ragen MCP Server exposes two tools today.
   Scoping is automatic and follows the key: the organization's assistants for a knowledge-base key, the single bound one for an assistant-scoped key. There is no separate access configuration required.
 </Accordion>
 
+<Accordion title="ragen_search_knowledge_base — Retrieve document chunks without an answer">
+  Search the knowledge base and return the most relevant document chunks, with no model call. This is the MCP equivalent of [`POST /v1/search`](/api-reference/search): use it when your agent should reason over the documents itself.
+
+  **Parameters**
+
+  <ParamField body="assistant_id" type="string">
+    The assistant (project) whose knowledge base to search. Optional — the key decides by itself, and naming an assistant it is not scoped to is refused.
+  </ParamField>
+
+  <ParamField body="query" type="string" required>
+    The search query. Must be at least one character.
+  </ParamField>
+
+  <ParamField body="max_results" type="number">
+    Maximum number of chunks to return, from 1 to 20. Defaults to the organization's configured retrieval count.
+  </ParamField>
+
+  **Response**
+
+  On success:
+
+  ```json
+  {
+    "success": true,
+    "context": "**Refund Policy**\n\nCustomers may return items within 30 days of purchase...",
+    "file_ids": ["file-abc123", "file-def456"]
+  }
+  ```
+
+  On error:
+
+  ```json
+  {
+    "success": false,
+    "status": 403,
+    "error": "This API key is scoped to a different assistant than 'asst-abc123'"
+  }
+  ```
+</Accordion>
+
 ---
 
 ## Configuring Claude Desktop
 
-To add Ragen to Claude Desktop, open your `claude_desktop_config.json` file and add a `ragen` entry under `mcpServers`. Claude Desktop supports Streamable HTTP MCP servers via a proxy command; use `npx` with the `@modelcontextprotocol/server-fetch` helper (or any HTTP-to-stdio bridge you prefer):
+To add Ragen to Claude Desktop, open your `claude_desktop_config.json` file and add a `ragen` entry under `mcpServers`:
 
 ```json title="claude_desktop_config.json"
 {
@@ -138,18 +178,24 @@ To add Ragen to Claude Desktop, open your `claude_desktop_config.json` file and 
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-fetch",
-        "https://your-ragen-instance.example.com/mcp"
+        "mcp-remote",
+        "https://your-ragen-instance.example.com/mcp",
+        "--header",
+        "Authorization:${RAGEN_AUTH}"
       ],
       "env": {
-        "AUTHORIZATION": "Bearer YOUR_API_KEY"
+        "RAGEN_AUTH": "Bearer YOUR_API_KEY"
       }
     }
   }
 }
 ```
 
-Replace `https://your-ragen-instance.example.com/mcp` with your actual `$RAGEN_MCP_URL/mcp` value.
+`claude_desktop_config.json` launches local processes over stdio; it has no field for a remote URL or request headers. [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) is the bridge: Claude Desktop starts it as a process, and it forwards every call to your Ragen MCP endpoint over Streamable HTTP with the `Authorization` header attached. Replace `https://your-ragen-instance.example.com/mcp` with your actual `$RAGEN_MCP_URL/mcp` value.
+
+<Note>
+  The header goes through an environment variable, written as `Authorization:${RAGEN_AUTH}` with no space after the colon: some clients split arguments on spaces, and `Bearer YOUR_API_KEY` inside `args` would arrive as two arguments.
+</Note>
 
 <Tip>
   On macOS, the `claude_desktop_config.json` file lives at `~/Library/Application Support/Claude/claude_desktop_config.json`. Restart Claude Desktop after saving changes for them to take effect.
@@ -208,7 +254,7 @@ Once your MCP client is connected, follow these steps to query your knowledge ba
 ## Current Scope
 
 <Note>
-  Today the Ragen MCP Server exposes two tools: `ragen_chat` and `ragen_list_assistants`. File upload and full thread history via MCP are on the roadmap — they follow the same pattern and will be added as additional tools in a future release.
+  Today the Ragen MCP Server exposes three tools: `ragen_chat`, `ragen_list_assistants` and `ragen_search_knowledge_base`. File upload and full thread history via MCP are on the roadmap — they follow the same pattern and will be added as additional tools in a future release.
 </Note>
 
 <CardGroup cols={2}>

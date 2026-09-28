@@ -62,10 +62,12 @@ Each API key is bound to one organization, and to a scope chosen when the key is
 
 | Operation | Scope | Notes |
 |-----------|-------|-------|
-| `POST /v1/chat/completions`, `POST /v1/chat` | Key scope | Retrieval runs against the bound assistant, or against the documents belonging to no assistant |
+| `POST /v1/chat/completions`, `POST /v1/chat`, `POST /v1/search` | Key scope | Retrieval runs against the bound assistant, or against the documents belonging to no assistant, filtered by the key creator's document permissions |
 | `POST /v1/files`, `GET/DELETE /v1/files[/:id]` | Key scope | Files belong to the bound assistant, or to no assistant for a knowledge-base key |
 | `POST/GET/PATCH/DELETE /v1/assistants[/:id]` | Key scope | A knowledge-base key sees every assistant in the org; an assistant-scoped key sees only its own, and can create or delete none |
 | `POST/GET/PATCH/DELETE /v1/threads[/:id]` + messages | Organization to list, key scope to create | Lists every thread in the org; creates against the key's scope, and refuses an `assistant_id` that disagrees with it |
+
+Inside its scope, a key reads with the [document permissions](#document-permissions) of the person who created it — the same filter the web app applies to them — so an agent using a member's key never sees a file that member cannot open. See [Whose permissions a key carries](/api-reference/authentication#whose-permissions-a-key-carries).
 
 ### Debug mode
 
