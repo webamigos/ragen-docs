@@ -95,6 +95,16 @@ The scope narrows more than the answer. A key bound to one assistant lists only 
   A key whose assistant is later deleted is refused rather than widened: it does not fall back to the knowledge base. Create a new key.
 </Note>
 
+## Whose permissions a key carries
+
+The scope picks *where* a key reads. *What* it reads there follows the person who created it. Every retrieval made with a key — chat, chat completions, search, and the MCP tools, which forward the key to these endpoints — applies that person's [document permissions](/concepts/access-control#document-permissions), exactly as the web app does for them: their organization role and their teams decide which files can enter a result.
+
+So a key created by a member returns only what that member can open, and a file its owner shared with nobody stays out of answers for other members' keys. Organization admins are the exception: they can see user-owned files (see [Document permissions](/concepts/access-control#document-permissions)), so a key created by an admin can retrieve such a file too. Give an agent a key created by the person it acts for, or by an account whose permissions you intend it to have — not an admin's key by default.
+
+<Note>
+  The creator's role and team memberships are read on every request, not frozen when the key is created: remove them from a team and their keys lose that team's documents on the next call.
+</Note>
+
 ## Debug mode
 
 Each API key has an optional **Debug mode** toggle you can enable when creating the key. When debug mode is on:

@@ -22,6 +22,8 @@ Authorization: Bearer YOUR_API_KEY
 
 A connection with no `Authorization` header, or one that isn't `Bearer`-prefixed, is rejected with `401` before any tool call can proceed. Ragen validates the key on each tool call — a deactivated or malformed key fails exactly as it would on `POST /v1/chat`.
 
+Every tool call runs with the permissions of the person who created the key: the key's scope picks the assistant or the knowledge base, and inside it retrieval applies that person's document permissions, the same as in the web app. See [Authentication](/api-reference/authentication#whose-permissions-a-key-carries).
+
 ## Available tools
 
 <Note>
@@ -92,28 +94,74 @@ List the assistants your API key can reach. A knowledge-base key sees every assi
 
 Scoping is automatic: this calls the same `GET /v1/assistants` endpoint as the REST API, which returns what the key can reach — the organisation's assistants for a knowledge-base key, the single bound one otherwise. The example above shows a knowledge-base key. There is no additional access configuration needed.
 
+---
+
+### `ragen_search_knowledge_base`
+
+Search the knowledge base and get back the most relevant document chunks, without generating an answer. Use it when your agent should reason over Ragen's documents itself — or when you want to check what Ragen retrieves before blaming the answer. It is the MCP equivalent of [`POST /v1/search`](/api-reference/search).
+
+<ParamField path="assistant_id" type="string">
+  The assistant (project) whose knowledge base to search. Optional — the key decides by itself, and naming an assistant it is not scoped to is refused.
+</ParamField>
+
+<ParamField path="query" type="string" required>
+  The search query.
+</ParamField>
+
+<ParamField path="max_results" type="integer">
+  Maximum number of chunks to return, a whole number from 1 to 20. Defaults to the organisation's configured retrieval count.
+</ParamField>
+
+**Success response:**
+
+```json
+{
+  "success": true,
+  "context": "**Refund Policy**\n\nCustomers may return items within 30 days of purchase...",
+  "file_ids": ["file-abc123", "file-def456"]
+}
+```
+
+`context` is the same block Ragen's chat passes to the model; `file_ids` are the source files, which `GET /v1/files/{id}` resolves.
+
+**Error response:**
+
+```json
+{ "success": false, "status": 403, "error": "This API key is scoped to a different assistant than 'asst-abc123'" }
+```
+
 ## Configuring Claude Desktop
 
-Add the following to your Claude Desktop configuration file to connect to your Ragen MCP Server:
+Add a `ragen` entry to your Claude Desktop configuration file:
 
 ```json title="claude_desktop_config.json"
 {
   "mcpServers": {
     "ragen": {
-      "url": "https://your-ragen-instance.example.com/mcp",
-      "transport": "streamable-http",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://your-ragen-instance.example.com/mcp",
+        "--header",
+        "Authorization:${RAGEN_AUTH}"
+      ],
+      "env": {
+        "RAGEN_AUTH": "Bearer YOUR_API_KEY"
       }
     }
   }
 }
 ```
 
-Replace `https://your-ragen-instance.example.com` with your `RAGEN_MCP_URL` value and `YOUR_API_KEY` with a valid Ragen API key.
+`claude_desktop_config.json` launches local processes over stdio; it has no field for a remote URL or request headers. [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) is the bridge: Claude Desktop starts it as a process, and it forwards every call to your Ragen MCP endpoint over Streamable HTTP with the `Authorization` header attached. Replace `https://your-ragen-instance.example.com` with your `RAGEN_MCP_URL` value and `YOUR_API_KEY` with a valid Ragen API key.
+
+<Note>
+  The header goes through an environment variable, written as `Authorization:${RAGEN_AUTH}` with no space after the colon: some clients split arguments on spaces, and `Bearer YOUR_API_KEY` inside `args` would arrive as two arguments.
+</Note>
 
 <Tip>
-  After saving the config, restart Claude Desktop. You should see `ragen_chat` and `ragen_list_assistants` appear in Claude's tool list. Call `ragen_list_assistants` first to confirm the connection is working and to retrieve your assistant IDs.
+  After saving the config, restart Claude Desktop. You should see `ragen_chat`, `ragen_list_assistants` and `ragen_search_knowledge_base` in Claude's tool list. Call `ragen_list_assistants` first to confirm the connection is working and to retrieve your assistant IDs.
 </Tip>
 
 ## Configuring Cursor
@@ -147,6 +195,9 @@ For custom agents or any MCP-compatible SDK, use Streamable HTTP transport and s
   </Card>
   <Card title="ragen_list_assistants" icon="list">
     Discover the assistants your API key can reach.
+  </Card>
+  <Card title="ragen_search_knowledge_base" icon="magnifying-glass">
+    Retrieve the most relevant document chunks, with no answer generated.
   </Card>
 </CardGroup>
 
