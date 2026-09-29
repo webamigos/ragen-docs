@@ -99,7 +99,7 @@ The scope narrows more than the answer. A key bound to one assistant lists only 
 
 The scope picks *where* a key reads. *What* it reads there follows the person who created it. Every retrieval made with a key — chat, chat completions, search, and the MCP tools, which forward the key to these endpoints — applies that person's [document permissions](/concepts/access-control#document-permissions), exactly as the web app does for them: their organization role and their teams decide which files can enter a result.
 
-So a key created by a member returns only what that member can open, and a file shared with nobody but its owner stays out of answers for everyone else's keys. A key created by an organization admin sees what an admin sees. Give an agent a key created by the person it acts for, or by an account whose permissions you intend it to have — not an admin's key by default.
+So a key created by a member returns only what that member can open, and a file its owner shared with nobody stays out of answers for other members' keys. Organization admins are the exception: they can see user-owned files (see [Document permissions](/concepts/access-control#document-permissions)), so a key created by an admin can retrieve such a file too. Give an agent a key created by the person it acts for, or by an account whose permissions you intend it to have — not an admin's key by default.
 
 <Note>
   The creator's role and team memberships are read on every request, not frozen when the key is created: remove them from a team and their keys lose that team's documents on the next call.
