@@ -52,7 +52,8 @@
               "configuration/storage",
               "configuration/token-vault",
               "configuration/background-jobs",
-              "configuration/open-models"
+              "configuration/open-models",
+              "configuration/eu-stack"
             ]
           },
           {

@@ -1,0 +1,136 @@
+---
+title: 'Run Ragen AI on a 100% European Stack'
+sidebarTitle: '100% EU Stack'
+description: 'Configure every layer of Ragen (hosting, storage, parsing, embeddings, reranking and every model role) so documents, prompts and answers are processed only by infrastructure and providers under EU jurisdiction.'
+---
+
+Ragen is self-hosted, so everything it stores stays where you install it. Storage is only half the question, though. A deployment can keep every document in Paris and still send prompts to a model provider outside the EU.
+
+This page shows how to configure **every layer** so that nothing is processed by a provider outside EU jurisdiction. It builds on [Local Models](/configuration/open-models), which covers the fully offline variant.
+
+<Note>
+  **Jurisdiction, not just region.** An EU region of a non-EU cloud provider keeps data physically in Europe, but the provider remains subject to the laws of its home country. For many organisations in the public sector, finance and healthcare, that is the deciding factor. This page is about the provider, not only the data centre.
+</Note>
+
+## The Stack, Layer by Layer
+
+| Layer | EU option | Notes |
+|---|---|---|
+| Hosting | Scaleway (FR), OVHcloud (FR), Hetzner (DE), IONOS (DE), your own servers | Anything that runs Docker Compose, or Kubernetes with the Helm chart. |
+| Database | PostgreSQL, self-hosted | Part of the default compose stack. |
+| Vector store | Qdrant, self-hosted | Runs on your servers; nothing is sent to Qdrant the company. |
+| Object storage | [RustFS](/configuration/storage#bundled-object-storage-rustfs) (bundled), Scaleway Object Storage (`fr-par`, `nl-ams`, `pl-waw`), OVHcloud Object Storage, MinIO / Ceph | RustFS starts with the stack, no cloud account needed. |
+| Document parsing | Docling, local | Default parser. **Set `DOCLING_STRICT=1`.** |
+| Embeddings | `bge-multilingual-gemma2` on Scaleway (the default), or a local model | Multilingual. |
+| Reranking | `RERANK_PROVIDER=scaleway` (`qwen3-embedding-8b`), or your own reranker | Off by default. See [Trade-offs](#trade-offs). |
+| Answers, rephrasing, summaries, scoring | `mistral-small-3.2` or `gpt-oss-120b` on Scaleway, or open models on your own GPU | **Every model role** must point at an EU route. |
+| Encryption keys | Scaleway Key Manager, or keys you hold | See [Encryption](/security/encryption). |
+| PII masking | Presidio, local (optional) | See [PII Masking](/security/pii-masking). |
+| Mail | Internal SMTP server or an EU mail provider | Or `MAIL_PROVIDER=console`, if administrators create every account. |
+| Telemetry | None by default | OpenTelemetry and Langfuse are inert unless you point them somewhere. |
+
+<Tip>
+  Where a model's weights come from does not decide where your data goes. An open model developed anywhere, served on EU infrastructure or on your own GPU, processes your data only there.
+</Tip>
+
+## Configuration
+
+<Steps>
+  <Step title="Pick EU hosting and storage">
+    Run the stack on an EU provider or your own servers. For object storage, the quickest route is the bundled RustFS: answer **RustFS** to the storage question in [`create-ragen-app`](/quickstart). To use a managed EU bucket instead, follow [Storage](/configuration/storage), for example Scaleway Object Storage in `fr-par`, `nl-ams` or `pl-waw`.
+  </Step>
+
+  <Step title="Connect Scaleway Generative APIs">
+    The shipped route table (`infra/llm-gateway/routes.yaml`) already carries the Scaleway routes: `mistral-small-3.2`, `gpt-oss-120b`, `bge-multilingual-gemma2` and `qwen3-embedding-8b`. They only need credentials:
+
+    ```bash title=".env.local"
+    SCW_API_BASE=https://api.scaleway.ai/<project-id>/v1
+    SCW_API_KEY=<scaleway-secret-key>
+    ```
+
+    Create the key in the Scaleway Console with the `GenerativeApisFullAccess` scope.
+
+    Choosing **Scaleway** in `create-ragen-app` writes these for you.
+  </Step>
+
+  <Step title="Point every model role at an EU route">
+    ```bash title=".env.local"
+    DEFAULT_MODEL=mistral-small-3.2
+    REPHRASE_MODEL=mistral-small-3.2
+    SUMMARY_MODEL=mistral-small-3.2
+    SCORING_MODEL=mistral-small-3.2
+    EMBEDDINGS_MODEL=bge-multilingual-gemma2
+    ```
+
+    `SUMMARY_MODEL` is read by the worker and `EMBEDDINGS_MODEL` by both the app and the worker, so set them in every process. `VECTOR_SIZE` defaults to `3584`, which matches `bge-multilingual-gemma2`.
+
+    <Warning>
+      Embeddings already default to Scaleway, but the chat, rephrase and scoring defaults in `.env.example` are Google Gemini models served through Vertex AI. Leaving `REPHRASE_MODEL` at its default is the most common miss: it sends every question and the conversation history to Google on every turn.
+    </Warning>
+
+    If you pick `gpt-oss-120b` for chat, keep `MULTIMODAL_FALLBACK_MODEL=mistral-small-3.2` (the default): `gpt-oss-120b` reads no images, and messages with image or document content are swapped to the fallback.
+
+    Remove credentials for providers you do not intend to use (`VERTEX_*`, `AWS_*`, `AZURE_OPENAI_*`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OPENROUTER_API_KEY` and so on), so no route can reach them by mistake. Then check with a real call per model:
+
+    ```bash
+    npm run gateway:preflight -- --probe
+    ```
+  </Step>
+
+  <Step title="Keep parsing local">
+    ```bash title=".env.local"
+    DOCUMENT_PARSER=docling
+    DOCLING_STRICT=1
+    ```
+
+    Without `DOCLING_STRICT=1`, a Docling failure falls back to the legacy loaders, and the legacy PDF path sends the document to an external model (`PDF_MODEL`, `claude-haiku-4-5` by default).
+  </Step>
+
+  <Step title="Keep reranking in the EU">
+    ```bash title=".env.local"
+    FEATURE_FLAG_RERANKING=1
+    RERANK_PROVIDER=scaleway
+    RERANK_MODEL=qwen3-embedding-8b
+    ```
+
+    `scaleway` is also the provider used when `RERANK_PROVIDER` is unset. `RERANK_PROVIDER=cohere` runs Cohere Rerank v3.5 on AWS Bedrock, which is outside EU jurisdiction even in an EU region, unless you point `RERANK_COHERE_BASE_URL` at a reranker on your own servers.
+  </Step>
+
+  <Step title="Close the remaining outbound paths">
+    Work through [What Still Reaches Outward](/configuration/open-models#what-still-reaches-outward). For an EU-only setup the ones that matter most:
+
+    - **Content moderation** calls the OpenAI Moderation API directly and cannot be rerouted. Keep the `content-moderation` rule off in [Guardrails](/security/guardrails).
+    - **MCP connectors** (Slack, HubSpot, Google and similar) are outbound by design. Enable only the ones you accept.
+    - **Speech** is off by default. `SPEECH_PROVIDER=elevenlabs` sends audio to ElevenLabs, and `SPEECH_PROVIDER=openai` sends it to `api.openai.com` unless you point `SPEECH_BASE_URL` at your own server.
+    - **Optional integrations** such as Firecrawl (`FIRECRAWL_API_KEY`) and HeyGen (`HEYGEN_API_TOKEN`) stay off while their keys are unset. Leave them unset.
+  </Step>
+</Steps>
+
+## Checklist
+
+- [ ] `DEFAULT_MODEL`, `REPHRASE_MODEL`, `SUMMARY_MODEL`, `SCORING_MODEL` and `EMBEDDINGS_MODEL` route to EU upstreams, in the app and the worker
+- [ ] No credentials for non-EU providers are set
+- [ ] `npm run gateway:preflight -- --probe` passes
+- [ ] `DOCLING_STRICT=1` is set
+- [ ] Reranking is off, uses `RERANK_PROVIDER=scaleway`, or points at your own server
+- [ ] Object storage is RustFS, MinIO / Ceph or an EU provider
+- [ ] The content-moderation rule is off; MCP connectors and speech are reviewed
+- [ ] Mail, OpenTelemetry and Langfuse point only at infrastructure you run
+
+## Trade-offs
+
+We would rather you hear this from us than find it in production.
+
+- **Answer quality.** EU-served and open models are good and improving fast, but on some tasks they still answer less well than the strongest commercial models. How much depends on your documents and your questions.
+- **Reranking.** The Scaleway reranker, `qwen3-embedding-8b`, is a bi-encoder, which ranks less precisely than a cross-encoder such as Cohere Rerank.
+- **Fully local means GPUs.** Serving the models yourself removes every external call, but needs GPU capacity. See [Local Models](/configuration/open-models).
+
+Measure on your own material before deciding. The eval datasets in [`apps/web/evals`](https://github.com/webamigos/RagenAI/tree/main/apps/web/evals) exist for exactly that.
+
+## Our Live Demo
+
+[demo.ragen.ai](https://demo.ragen.ai) answers, searches and reranks with Scaleway Generative APIs: `mistral-small-3.2` for answers, `bge-multilingual-gemma2` for embeddings and `qwen3-embedding-8b` for reranking. Uploaded files are kept in Scaleway Object Storage, conversations are encrypted with a key in Scaleway Key Manager, and documents are parsed by Docling with `DOCLING_STRICT=1`.
+
+## Need Help?
+
+Web Amigos built Ragen and deploys it for companies across Europe. If you want an EU-only deployment set up, reviewed or maintained, [talk to the team that built it](https://ragen.ai/en/contact?utm_source=docs&utm_medium=eu-stack&utm_campaign=ragen).

@@ -4,7 +4,7 @@ sidebarTitle: 'Local Models'
 description: 'Point all four model roles at a local vLLM or Ollama server so no document content, query text, or embeddings ever leave your network.'
 ---
 
-When you point every model role at a local endpoint, nothing your users type and none of your document content leaves your network. "Fully offline" is a configuration you arrive at intentionally, not something you inherit: you must set all four model roles, disable outbound reranking, set `DOCLING_STRICT=1`, and check the [what still reaches outward](#what-still-reaches-outward) table below.
+When you point every model role at a local endpoint, nothing your users type and none of your document content leaves your network. "Fully offline" is a configuration you arrive at intentionally, not something you inherit: you must set all four model roles, disable outbound reranking, set `DOCLING_STRICT=1`, and check the [what still reaches outward](#what-still-reaches-outward) table below. If you would rather use EU-hosted models than your own GPUs, see [100% EU Stack](/configuration/eu-stack).
 
 ## How the Routing Works
 
