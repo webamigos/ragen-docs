@@ -40,7 +40,7 @@ When you upload a file, Ragen AI processes it automatically in the background. Y
   <Step title="Embed">
     Each chunk — including the summary chunk — is converted to a hybrid representation: a dense vector using `bge-multilingual-gemma2` for semantic meaning, plus BM25 sparse tokens for exact-term matching.
 
-    Before the dense embedding, each chunk gets a short prefix: the document's title, the heading the chunk sits under, and the first sentence of the document's summary. A passage that only says "the notice period is 30 days" can then be found by a question that names the contract. The prefix costs no model call and is stored beside the chunk, never inside it, so the answer model and the citation still show the text exactly as written. BM25 indexes the bare chunk.
+    Before the dense embedding, the worker adds a short prefix to each chunk: the document's title, the heading the chunk sits under, and the first sentence of the document's summary. A passage that only says "the notice period is 30 days" then answers a question that names the contract. Building the prefix costs no model call. The worker stores it beside the chunk, never inside it, so the answer model and the citation still show you the text exactly as written. BM25 indexes the bare chunk.
   </Step>
   <Step title="Store">
     Both vector types are stored in the vector collection along with the file's visibility rules as chunk metadata. Retrieval queries automatically filter results based on who is asking, so a document someone cannot read never surfaces in their answers.
@@ -49,7 +49,7 @@ When you upload a file, Ragen AI processes it automatically in the background. Y
 
 ### Documents indexed before a pipeline change
 
-The title-and-section prefix is on by default (`contextualChunks`), and it applies to documents as they are indexed. Documents uploaded before it was switched on keep working, without the prefix, until they are re-indexed. An organization admin can do that from **Organization → RAG pipeline**, which shows how many documents are indexed with the prefix and re-indexes the rest in the background. Re-indexing re-embeds the version of each document you see, including your edits.
+The title-and-section prefix is on by default (`contextualChunks`), and the worker adds it as it indexes a document. Documents you uploaded before it was on keep working without the prefix until you re-index them. If you are an organization admin, open **Organization → RAG pipeline**: it shows how many documents carry the prefix, and you can re-index the rest in the background. Re-indexing re-embeds the version of each document you see, including your edits.
 
 ## Folders
 
