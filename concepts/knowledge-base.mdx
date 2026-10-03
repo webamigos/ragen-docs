@@ -35,7 +35,7 @@ When you upload a file, Ragen AI processes it automatically in the background. Y
     A background worker parses the file using a format-specific splitter and divides the content into overlapping chunks sized for retrieval.
   </Step>
   <Step title="Generate summary">
-    The worker generates a short summary of the entire document and prepends it as a special summary chunk. This gives retrieval a high-level anchor that no individual flat chunk contains.
+    The worker generates a short summary of the entire document and prepends it as a special summary chunk. This gives retrieval a high-level anchor that no individual flat chunk contains. Summaries can be turned off for the whole deployment (`FEATURE_FLAG_DOC_SUMMARIES=0`) or per organization in the admin panel; documents indexed earlier keep theirs.
   </Step>
   <Step title="Embed">
     Each chunk — including the summary chunk — is converted to a hybrid representation: a dense vector using `bge-multilingual-gemma2` for semantic meaning, plus BM25 sparse tokens for exact-term matching.
