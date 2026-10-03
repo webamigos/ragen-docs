@@ -1,7 +1,7 @@
 ---
 title: 'RAG Pipeline: How Ragen AI Retrieves and Generates Answers'
 sidebarTitle: 'RAG Pipeline'
-description: 'Learn the four-stage pipeline — rephrase, hybrid search, optional rerank, generate — that turns your documents into accurate, cited answers.'
+description: 'Learn the retrieval pipeline — rephrase, hybrid search, rerank or section selection, neighbouring chunks, generate — that turns your documents into accurate, cited answers.'
 ---
 
 When you ask Ragen AI a question, the answer does not come from a general-purpose language model making its best guess. Instead, a multi-stage retrieval pipeline finds the most relevant passages in your knowledge base and passes them to the model as grounded context. The result is an answer that cites your actual documents and cannot drift beyond what they contain.
@@ -22,10 +22,17 @@ When you ask Ragen AI a question, the answer does not come from a general-purpos
 
     Results from both methods are merged using **Reciprocal Rank Fusion (RRF)** on the Qdrant server. Hybrid search is always on — there is no toggle.
   </Step>
-  <Step title="Reranking (optional)">
+  <Step title="Reranking or section selection (optional)">
     When reranking is enabled, Ragen AI over-retrieves three times the final number of chunks, then passes them through a cross-encoder that scores each query/document pair directly. The top-scoring chunks move forward; the rest are discarded.
 
     Reranking is **opt-in** and requires `FEATURE_FLAG_RERANKING=1` plus provider credentials in your deployment. If the reranker encounters an error, the pipeline automatically falls back to the raw hybrid results — quality may degrade slightly, but the answer is never blocked.
+
+    **Section selection** is an alternative that takes the reranker's place: a language model is shown the question and the candidate passages and names the ones worth reading, in one call per turn. It is off by default and switched on per organization (`sectionSelection`). When it is on, the reranker does not run. If the model times out or answers something unreadable, the pipeline keeps the hybrid order. Measured on Ragen's own evaluation set, it matched the reranker on prose and did worse on tables, which is why it is not the default.
+  </Step>
+  <Step title="Read the neighbouring chunks">
+    Each chunk that survives the previous step is read together with the chunk on either side of it in the same file. The pieces are joined into one passage and the overlap between them is trimmed, so an answer that starts at the end of one chunk keeps its first half. Neighbours are always the same kind of chunk: prose expands into prose, never into the summary or a table chunk.
+
+    This is **on by default** and can be turned off per organization (`contextExpansion`). The extra context is capped at three times the usual amount, and it adds a few milliseconds per question.
   </Step>
   <Step title="Answer generation with citations">
     The surviving chunks become the context for the language model. The model generates an answer that is grounded in those chunks and cites the source documents by name. Only the sources the model explicitly names in its answer are recorded as citations — sources that were retrieved but not referenced are excluded from the citation list.
@@ -34,7 +41,7 @@ When you ask Ragen AI a question, the answer does not come from a general-purpos
 
 ## Model roles
 
-Ragen AI uses four distinct model roles across the pipeline. Each role has a default and can be configured independently in your deployment.
+Ragen AI uses up to five model roles across the pipeline. Each role has a default and can be configured independently in your deployment.
 
 | Role | When used | Default |
 |------|-----------|---------|
@@ -42,14 +49,17 @@ Ragen AI uses four distinct model roles across the pipeline. Each role has a def
 | **Rephrase + multi-query** | Before retrieval — rewrites and expands the question | `gemini-2.5-flash` |
 | **Document summary** | At ingest — summarizes each document for the summary chunk | `gemini-2.5-flash` |
 | **Embeddings** | Every document at ingest + every question at retrieval | `bge-multilingual-gemma2` |
+| **Section selection** | Only when `sectionSelection` is on — picks the passages to read | the rephrase model (`SELECTION_MODEL` overrides it) |
 
 <Note>
-  If you switch to local or self-hosted models, configure all four roles together. The embedding model in particular **must stay consistent** between ingest and retrieval — if you change it after documents are already indexed, the existing vectors become incompatible with new queries and you will need to re-index your entire knowledge base.
+  If you switch to local or self-hosted models, configure every role you use together. The embedding model in particular **must stay consistent** between ingest and retrieval — if you change it after documents are already indexed, the existing vectors become incompatible with new queries and you will need to re-index your entire knowledge base.
 </Note>
 
 ## Multilingual support
 
-The default embedding model, `bge-multilingual-gemma2`, supports cross-lingual retrieval. You can upload documents in one language and ask questions in another — the pipeline matches meaning across languages rather than requiring identical terminology. Internal benchmarks show 92% retrieval accuracy on multilingual query sets.
+The default embedding model, `bge-multilingual-gemma2`, supports cross-lingual retrieval. You can upload documents in one language and ask questions in another — the pipeline matches meaning across languages rather than requiring identical terminology.
+
+Cross-lingual questions are also where each passage's title-and-section prefix (see [Knowledge base](/concepts/knowledge-base#document-processing-pipeline)) helps most. On Ragen's own bilingual evaluation set, the figures asked about in the other language reached the model in two or three cases out of eight without the prefix, and in all eight with it. The set is small — 24 questions, three runs — so treat that as a direction, not a guarantee. The benchmark ships in the repository (`apps/web/evals/rag-benchmark`) so you can run it on your own documents.
 
 <Accordion title="Pipeline configuration flags">
   The following environment flags control which pipeline stages are active in your deployment:
@@ -58,6 +68,15 @@ The default embedding model, `bge-multilingual-gemma2`, supports cross-lingual r
   |------|---------|--------|
   | `FEATURE_FLAG_RERANKING` | off | Set to `1` to enable cross-encoder reranking. Also requires provider credentials (`SCW_API_BASE` + `SCW_API_KEY` for Scaleway, or AWS credentials for Cohere). |
   | `FEATURE_FLAG_DOC_SUMMARIES` | on | Set to `0` or `false` to disable per-document summary chunk generation at ingest. |
+  | `SELECTION_MODEL` | the rephrase model | The model section selection uses, when an organization has it on. |
 
   Multi-query expansion has no environment flag — it is controlled by the **per-organization multi-query setting** on the organization RAG settings page.
+
+  Three more stages are feature keys, set for the whole platform or per organization in the admin panel's **Features** page:
+
+  | Feature key | Default | Effect |
+  |------|---------|--------|
+  | `contextualChunks` | on | Index each chunk with its document's title, section and a summary sentence. Applies to documents indexed after it is on; older ones need a re-index. |
+  | `contextExpansion` | on | Read each retrieved chunk together with its neighbours. Applies immediately, no re-index. |
+  | `sectionSelection` | off | A model picks the passages to read, in place of the reranker. One extra model call per question. |
 </Accordion>
