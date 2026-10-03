@@ -72,7 +72,7 @@ Cross-lingual questions are also where each passage's title-and-section prefix (
   | `FEATURE_FLAG_DOC_SUMMARIES` | on | Set to `0` or `false` to disable per-document summary chunk generation at ingest for the whole deployment. Each organization also has its own **Document summaries** switch in the admin panel; a summary is generated only when both allow it. |
   | `SELECTION_MODEL` | the rephrase model | The model section selection uses, when an organization has it on. |
 
-  Multi-query expansion has no environment flag — it is controlled by the **per-organization multi-query setting** on the organization RAG settings page.
+  Multi-query expansion has no environment flag — it is the **per-organization multi-query setting**, changed in the admin panel's **RAG Settings** and shown read-only on the organization's RAG settings page.
 
   Three more stages are feature keys, set for the whole platform or per organization in the admin panel's **Features** page:
 
