@@ -4,7 +4,9 @@ sidebarTitle: 'RAG Pipeline'
 description: 'Learn the retrieval pipeline — rephrase, hybrid search, rerank or section selection, neighbouring chunks, generate — that turns your documents into accurate, cited answers.'
 ---
 
-When you ask Ragen AI a question, the answer does not come from a general-purpose language model making its best guess. Instead, a multi-stage retrieval pipeline finds the most relevant passages in your knowledge base and passes them to the model as grounded context. The result is an answer that cites your actual documents and cannot drift beyond what they contain.
+When you ask Ragen AI a question, the answer does not come from a general-purpose language model making its best guess. Instead, a multi-stage retrieval pipeline finds the most relevant passages in your knowledge base and passes them to the model as grounded context. The result is an answer that cites your actual documents.
+
+When the documents do not contain the answer, the assistant says so. It may then add what it knows from general knowledge, and it labels that part as not coming from your documents.
 
 ## How retrieval works
 
@@ -12,7 +14,7 @@ When you ask Ragen AI a question, the answer does not come from a general-purpos
   <Step title="Rephrase and expand">
     Before any search runs, Ragen AI rewrites your question into a self-contained standalone query — removing pronouns and references that only make sense in the context of the conversation so far. In the same step, the system generates one alternative phrasing of the question (multi-query expansion). Both queries run in parallel against your knowledge base.
 
-    Multi-query expansion is **on by default** at the organization level. Your administrator can turn it off per organization in the RAG settings page.
+    Multi-query expansion is **on by default** at the organization level. A platform administrator can turn it off per organization in the admin panel's **RAG Settings**; organization admins see the current state on the organization's RAG settings page.
   </Step>
   <Step title="Hybrid retrieval">
     Each query runs a **hybrid search** that combines two complementary signals:
@@ -23,9 +25,9 @@ When you ask Ragen AI a question, the answer does not come from a general-purpos
     Results from both methods are merged using **Reciprocal Rank Fusion (RRF)** on the Qdrant server. Hybrid search is always on — there is no toggle.
   </Step>
   <Step title="Reranking or section selection (optional)">
-    When reranking is enabled, Ragen AI over-retrieves three times the final number of chunks, then passes them through a cross-encoder that scores each query/document pair directly. The top-scoring chunks move forward; the rest are discarded.
+    When reranking is enabled, Ragen AI over-retrieves three times the final number of chunks, then passes them through a reranking model that re-scores each passage against the question. The top-scoring chunks move forward; the rest are discarded.
 
-    Reranking is **opt-in** and requires `FEATURE_FLAG_RERANKING=1` plus provider credentials in your deployment. If the reranker encounters an error, the pipeline automatically falls back to the raw hybrid results — quality may degrade slightly, but the answer is never blocked.
+    Reranking is **opt-in** and requires `FEATURE_FLAG_RERANKING=1` plus provider credentials in your deployment, so a default install answers from the hybrid results. The default provider, Scaleway `qwen3-embedding-8b`, re-sorts passages by embedding similarity; `RERANK_PROVIDER=cohere` uses Cohere Rerank v3.5, a cross-encoder. If the reranker encounters an error, the pipeline falls back to the raw hybrid results, and the answer is never blocked. The organization's RAG settings page shows reranking as off when the deployment has no reranker configured.
 
     **Section selection** is an alternative that takes the reranker's place: a language model is shown the question and the candidate passages and names the ones worth reading, in one call per turn. It is off by default and switched on per organization (`sectionSelection`). When it is on, the reranker does not run. If the model times out or answers something unreadable, the pipeline keeps the hybrid order. Measured on Ragen's own evaluation set, it matched the reranker on prose and did worse on tables, which is why it is not the default.
   </Step>
@@ -66,8 +68,8 @@ Cross-lingual questions are also where each passage's title-and-section prefix (
 
   | Flag | Default | Effect |
   |------|---------|--------|
-  | `FEATURE_FLAG_RERANKING` | off | Set to `1` to enable cross-encoder reranking. Also requires provider credentials (`SCW_API_BASE` + `SCW_API_KEY` for Scaleway, or AWS credentials for Cohere). |
-  | `FEATURE_FLAG_DOC_SUMMARIES` | on | Set to `0` or `false` to disable per-document summary chunk generation at ingest. |
+  | `FEATURE_FLAG_RERANKING` | off | Set to `1` to enable reranking. Also requires provider credentials (`SCW_API_BASE` + `SCW_API_KEY` for Scaleway, or `RERANK_COHERE_BASE_URL` for Cohere). |
+  | `FEATURE_FLAG_DOC_SUMMARIES` | on | Set to `0` or `false` to disable per-document summary chunk generation at ingest for the whole deployment. Each organization also has its own **Document summaries** switch in the admin panel; a summary is generated only when both allow it. |
   | `SELECTION_MODEL` | the rephrase model | The model section selection uses, when an organization has it on. |
 
   Multi-query expansion has no environment flag — it is controlled by the **per-organization multi-query setting** on the organization RAG settings page.

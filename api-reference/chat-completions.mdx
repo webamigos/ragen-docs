@@ -281,7 +281,7 @@ Errors use the OpenAI error envelope, so existing SDK error-handling continues t
 
 ## Rate limits
 
-Chat Completions run a full RAG pipeline (vector search + rerank + LLM call):
+Chat Completions run a full RAG pipeline (hybrid search, reranking when the deployment enables it, and an LLM call):
 
 | Scope | Limit |
 |---|---|

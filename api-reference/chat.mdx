@@ -4,7 +4,7 @@ sidebarTitle: 'Chat'
 description: 'POST /v1/chat — Send a single message to a Ragen assistant and get a RAG-grounded answer back. Supports streaming via Server-Sent Events.'
 ---
 
-The Chat endpoint is the simplest way to query your Ragen knowledge base. Send a single message, get a single answer — Ragen handles retrieval, reranking, and generation behind the scenes. If you need multi-turn conversation, model selection, or token usage tracking, use [Chat Completions](/api-reference/chat-completions) instead.
+The Chat endpoint is the simplest way to query your Ragen knowledge base. Send a single message, get a single answer — Ragen handles retrieval and generation behind the scenes. If you need multi-turn conversation, model selection, or token usage tracking, use [Chat Completions](/api-reference/chat-completions) instead.
 
 ## Endpoint
 
@@ -249,10 +249,10 @@ When you call `POST /v1/chat`, Ragen runs a five-step pipeline:
     The assistant comes from the API key's scope. A key bound to one assistant resolves to it; a knowledge-base key resolves to no assistant, and retrieval runs against the documents that belong to none. An `assistant_id` in the request must agree with that, or the call is refused with `403`.
   </Step>
   <Step title="RAG retrieval">
-    Relevant document chunks are retrieved from the assistant's knowledge base via vector search.
+    Relevant document chunks are retrieved from the assistant's knowledge base with hybrid search (dense vectors plus BM25).
   </Step>
-  <Step title="Reranking">
-    Retrieved chunks are reranked for relevance before being included in the prompt.
+  <Step title="Reranking (when enabled)">
+    If the deployment has reranking enabled, retrieved chunks are re-scored before being included in the prompt. It is off by default; see [RAG pipeline](/concepts/rag-pipeline).
   </Step>
   <Step title="Generation and response">
     The language model generates an answer using the retrieved context and your message. The response is returned as JSON or streamed as SSE.
