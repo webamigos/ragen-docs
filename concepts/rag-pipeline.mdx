@@ -6,7 +6,12 @@ description: 'Learn the retrieval pipeline — rephrase, hybrid search, rerank o
 
 When you ask Ragen AI a question, the answer does not come from a general-purpose language model making its best guess. Instead, a multi-stage retrieval pipeline finds the most relevant passages in your knowledge base and passes them to the model as grounded context. The result is an answer that cites your actual documents.
 
-When the documents do not contain the answer, the assistant says so. It may then add what it knows from general knowledge, and it labels that part as not coming from your documents.
+When the documents do not contain the answer, the assistant says so. What happens next depends on the assistant's **Answer only from documents** switch, on the assistant's page:
+
+- **On** — the assistant stops there and does not answer from general knowledge. This is the default for every assistant with the public chatbot enabled, and the organization's embedded website widget always works this way.
+- **Off** — the default for other assistants: it may add what it knows from general knowledge, and it labels that part as not coming from your documents.
+
+Documents and images attached to a message count as documents for this rule.
 
 ## How retrieval works
 
