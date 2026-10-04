@@ -130,7 +130,7 @@ Both `upload --wait` and `status` exit with a non-zero code when a file fails to
 ragen kb upload handbook.pdf policies/*.md --wait || exit 1
 ```
 
-Uploads are rate limited per minute. When a batch reaches the limit, the CLI waits as long as the server asks — at most two minutes at a time — and carries on: you see `Rate limited; waiting 60s before note-11.md.` instead of the rest failing. A monthly usage limit is different: it does not lift by waiting, so the CLI prints the server's message and stops the batch. While waiting for indexing it checks all files in a single request every few seconds, so a large batch does not use up the limit by itself. If checking fails partway, it stops waiting but still prints what was uploaded — with `--json`, the file ids — and exits with a non-zero code.
+Uploads are rate limited per minute. When a batch reaches the limit, the CLI waits as long as the server asks and carries on: you see `Rate limited; waiting 60s before note-11.md.` instead of the rest failing. A limit that does not lift within two minutes — such as a monthly usage limit — is different: the CLI prints the server's message and stops the batch. While waiting for indexing it checks all files in a single request every few seconds, so a large batch does not use up the limit by itself. If checking fails partway, it stops waiting but still prints what was uploaded — with `--json`, the file ids — and exits with a non-zero code.
 
 ## Search the knowledge base
 
