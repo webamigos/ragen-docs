@@ -66,7 +66,7 @@ echo "$RAGEN_API_KEY" | ragen login --url https://api.example.com
   The key is saved as plain text in `~/.config/ragen/config.json` (`$XDG_CONFIG_HOME/ragen/` when that is set, `%APPDATA%\ragen\` on Windows), readable only by your user. Run `ragen logout` to delete it. Prefer the hidden prompt or a pipe to `--api-key`, which lands in your shell history.
 </Warning>
 
-Environment variables take precedence over the saved connection, and `--url` and `--api-key` take precedence over both:
+Environment variables take precedence over the saved connection, and `--url` and `--api-key` take precedence over both. The saved key is only ever sent to the address it was saved for: when `--url` or `RAGEN_API_URL` names a different host, pass a key for it explicitly, or the command stops rather than send the saved one there.
 
 ```bash
 export RAGEN_API_URL=https://api.example.com
@@ -130,7 +130,7 @@ Both `upload --wait` and `status` exit with a non-zero code when a file fails to
 ragen kb upload handbook.pdf policies/*.md --wait || exit 1
 ```
 
-Uploads are rate limited per minute. When a batch reaches the limit, the CLI waits as long as the server asks and carries on — you see `Rate limited; waiting 60s before note-11.md.` — instead of failing the rest. While waiting for indexing it checks all files in a single request every few seconds, so a large batch does not use up the limit by itself.
+Uploads are rate limited per minute. When a batch reaches the limit, the CLI waits as long as the server asks — at most two minutes at a time — and carries on: you see `Rate limited; waiting 60s before note-11.md.` instead of the rest failing. A monthly usage limit is different: it does not lift by waiting, so the CLI prints the server's message and stops the batch. While waiting for indexing it checks all files in a single request every few seconds, so a large batch does not use up the limit by itself. If checking fails partway, it stops waiting but still prints what was uploaded — with `--json`, the file ids — and exits with a non-zero code.
 
 ## Search the knowledge base
 
@@ -152,13 +152,14 @@ ragen search "How many days do customers have to return a mug?"
 ragen ask "How many days do customers have to return a mug?"
 ```
 
-`ragen ask` sends one message through [`/v1/chat`](/api-reference/chat) — the same retrieval, guardrails and usage limits as chat in the panel — and prints the answer as it is written.
+`ragen ask` sends one message through [`/v1/chat`](/api-reference/chat) — the same retrieval, guardrails and usage limits as chat in the panel — and prints the answer as it is written. When you redirect the output to a file or a pipe, it waits for the complete answer instead, so text a guardrail withdraws never lands there; pass `--stream` to stream anyway.
 
 | Option | What it does |
 |---|---|
 | `--assistant <id>` | Ask one assistant; also read from `RAGEN_ASSISTANT_ID` |
 | `--reasoning <level>` | `low`, `medium` or `high`, for models that reason. Other models ignore it |
-| `--no-stream` | Print the answer once it is complete |
+| `--no-stream` | Print the answer once it is complete — the default when output is not a terminal |
+| `--stream` | Stream even when output is not a terminal |
 | `--json` | Print `{"text": …}` once complete |
 
 `ragen ask` exits with a non-zero code when the answer is cut off before the API finishes it, so a script does not mistake a truncated answer for a short one. If an output guardrail stops an answer partway, the CLI notes that the text already printed was withdrawn and then prints the refusal.
