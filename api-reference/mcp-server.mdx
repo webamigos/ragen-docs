@@ -20,8 +20,10 @@ Authenticate using the same API key you use for the REST API — send it as a Be
 Authorization: Bearer YOUR_API_KEY
 ```
 
+The server also has a stdio mode, for a client that starts it as a local process. There the key comes from the `RAGEN_API_KEY` environment variable instead of a header. See [Running the server locally over stdio](/integrations/mcp-server#running-the-server-locally-over-stdio).
+
 <Warning>
-  A connection with no `Authorization` header, or one that isn't `Bearer`-prefixed, is rejected with a `401` before any tool call is possible. The API key is validated on each tool invocation — a deactivated or malformed key fails the same way it would calling the REST API directly.
+  Over HTTP, a connection with no `Authorization` header, or one that isn't `Bearer`-prefixed, is rejected with a `401` before any tool call is possible. The API key is validated on each tool invocation — a deactivated or malformed key fails the same way it would calling the REST API directly.
 </Warning>
 
 ---
@@ -192,6 +194,8 @@ To add Ragen to Claude Desktop, open your `claude_desktop_config.json` file and 
 ```
 
 `claude_desktop_config.json` launches local processes over stdio; it has no field for a remote URL or request headers. [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) is the bridge: Claude Desktop starts it as a process, and it forwards every call to your Ragen MCP endpoint over Streamable HTTP with the `Authorization` header attached. Replace `https://your-ragen-instance.example.com/mcp` with your actual `$RAGEN_MCP_URL/mcp` value.
+
+To run the server on your own machine instead, without `mcp-remote`, start it over stdio. See [Running the server locally over stdio](/integrations/mcp-server#running-the-server-locally-over-stdio).
 
 <Note>
   The header goes through an environment variable, written as `Authorization:${RAGEN_AUTH}` with no space after the colon: some clients split arguments on spaces, and `Bearer YOUR_API_KEY` inside `args` would arrive as two arguments.
