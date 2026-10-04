@@ -242,6 +242,71 @@ For custom agents or any MCP-compatible SDK, use Streamable HTTP transport and s
   </Card>
 </CardGroup>
 
+## Testing the connection
+
+Before you configure a client, you can check each layer from a terminal with the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) CLI. Run the commands in order. Each one depends on everything the one before it proved, so the first failure tells you which layer is broken.
+
+### Set the key without echoing it
+
+Read the key into a variable instead of typing it on the command line, where it would land in your shell history and on screen:
+
+```bash
+read -s RAGEN_API_KEY && export RAGEN_API_KEY
+```
+
+Paste the key and press Enter. Nothing is shown. Set `RAGEN_MCP_URL` to your server's address the same way, or with a plain `export`, since it is not a secret.
+
+### Check one layer at a time
+
+<Steps>
+  <Step title="The MCP server: list its tools">
+    ```bash
+    npx -y @modelcontextprotocol/inspector --cli "$RAGEN_MCP_URL/mcp" --transport http --header "Authorization: Bearer $RAGEN_API_KEY" --method tools/list
+    ```
+
+    You should see `ragen_chat`, `ragen_list_assistants` and `ragen_search_knowledge_base`. This step does not check the key: the MCP server only checks that the header is shaped like `Bearer <key>`. A pass proves the server is reachable, nothing more.
+  </Step>
+
+  <Step title="The key and the Ragen API: list assistants">
+    ```bash
+    npx -y @modelcontextprotocol/inspector --cli "$RAGEN_MCP_URL/mcp" --transport http --header "Authorization: Bearer $RAGEN_API_KEY" --method tools/call --tool-name ragen_list_assistants
+    ```
+
+    `"success": true` with a list of assistants means the key is valid. It also means the Ragen API, and the token vault it checks keys against, both work.
+  </Step>
+
+  <Step title="Retrieval: search the knowledge base">
+    ```bash
+    npx -y @modelcontextprotocol/inspector --cli "$RAGEN_MCP_URL/mcp" --transport http --header "Authorization: Bearer $RAGEN_API_KEY" --method tools/call --tool-name ragen_search_knowledge_base --tool-arg "query=refund policy"
+    ```
+
+    `"success": true` means the vector store answers. An empty `file_ids` list is still a pass: retrieval works, and this query found nothing.
+  </Step>
+
+  <Step title="A model answer: chat">
+    ```bash
+    npx -y @modelcontextprotocol/inspector --cli "$RAGEN_MCP_URL/mcp" --transport http --header "Authorization: Bearer $RAGEN_API_KEY" --method tools/call --tool-name ragen_chat --tool-arg "message=What is this knowledge base about?"
+    ```
+
+    This spends model tokens, so run it last.
+  </Step>
+</Steps>
+
+### Reading the result
+
+| What you see | What it means |
+|---|---|
+| `401` before any tool runs | The `Authorization` header is missing, or it is not `Bearer <key>` |
+| `404` when connecting | Nothing answers MCP at this URL. It should end in `/mcp` |
+| Tools are listed, then `"status": 401, "error": "Invalid API key"` | The key is wrong or deactivated. On a self-hosted instance, the API may also be unable to reach its token vault |
+| `"status": 403` | The key's scope does not cover the request. A key created for one assistant only answers for that assistant |
+| `"status": 0, "error": "fetch failed"` | The MCP server cannot reach the Ragen API |
+| `"status": 500` from search or chat | The Ragen API failed behind the MCP server. See [When tools are listed but calls fail](#when-tools-are-listed-but-calls-fail) |
+
+<Tip>
+  When you are done testing, deactivate a key you created only for the test in **Organization → API keys**.
+</Tip>
+
 ## Self-hosting the MCP server
 
 If you run Ragen yourself, the MCP server is a separate service — a thin one. It owns no data: every tool call forwards an API key to the Ragen API, which does the authentication, the retrieval and the rate limiting. That is why it configures in three variables, plus two for stdio and two optional ones for OpenTelemetry.
@@ -267,6 +332,20 @@ There is nothing else — **no database, no Redis, no API key of its own** over 
   `TARGET_ENV` is what makes `RAGEN_API_URL` required. A deployment that leaves it unset would read as `local`, accept the localhost fallback, boot cleanly, and then fail every tool call with a connection error. Recent versions refuse to start instead — if yours boots without it, set it anyway and check `RAGEN_API_URL` really points at your API.
 </Warning>
 
-### Checking it works
+### When tools are listed but calls fail
 
-The server answers MCP over Streamable HTTP, so the quickest end-to-end check is a real client: point Claude Desktop or Cursor at `$RAGEN_MCP_URL/mcp` with a Bearer key and call `ragen_list_assistants`. If the key is valid and the API is reachable, it returns the assistants that key can see. A connection error there almost always means `RAGEN_API_URL` is wrong or unreachable from the container, rather than anything about MCP.
+The MCP server's health check (`/health`) and its tool list do not depend on the Ragen API, so both pass while every tool call fails. The calls depend on variables of the **`api` service**, not of the MCP server:
+
+| Symptom | Where to look |
+|---|---|
+| `"status": 0`, `fetch failed` | `RAGEN_API_URL` on the MCP server: the API's address as seen from the MCP server's container |
+| `401 Invalid API key` for a key you just created | `RAGEN_TOKEN_VAULT_URL` (and its secret) on the `api` service: the API checks every key against the token vault |
+| `500` from `ragen_search_knowledge_base` or `ragen_chat` | The `api` service's logs. An unset or unreachable `QDRANT_URL` is the usual cause, then the model provider's credentials |
+
+If you have a checkout of the Ragen repository, its smoke test runs all of the steps above against a URL and prints a hint naming the service and variable for the first one that fails:
+
+```bash
+npm run smoke --workspace=@ragenai/mcp -- "$RAGEN_MCP_URL/mcp"
+```
+
+It reads the key from `RAGEN_API_KEY` and exits with `1` when a step fails, so it can also run after a deployment.
