@@ -197,7 +197,7 @@ Claude Desktop can start the MCP server as a local process and talk to it over s
 }
 ```
 
-`RAGEN_API_URL` is the address of the Ragen API (the `api` service), not of the MCP server. `RAGEN_API_KEY` is the key on its own, without `Bearer`. Over stdio there is no request to carry an `Authorization` header, so the server reads the key from its environment instead.
+`RAGEN_API_URL` is the address of the Ragen API (the `api` service), not of the MCP server, and it is resolved from inside the container. If the API runs on the same machine, `localhost` points at the container itself. On Docker Desktop, use `http://host.docker.internal:3001` instead. `RAGEN_API_KEY` is the key on its own, without `Bearer`. Over stdio there is no request to carry an `Authorization` header, so the server reads the key from its environment instead.
 
 <Note>
   Without `RAGEN_API_KEY` the server still starts and lists its tools, and every tool call returns an error naming the variable to set. That error is the first thing to check if the tools appear but never answer.
