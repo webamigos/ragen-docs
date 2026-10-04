@@ -148,6 +148,15 @@ One variable selects an implementation for each provider, and that choice determ
         ```
       </Tab>
     </Tabs>
+
+    Every email is written in the reader's language, in any of the languages the panel ships: invitations, password resets, address verification and the welcome message. Ragen picks the language in this order:
+
+    1. The language of the person who caused the email. An invitation uses the language of the administrator who sent it.
+    2. The `NEXT_LOCALE` cookie, which holds the language chosen in the panel.
+    3. The browser's `Accept-Language` header.
+    4. English.
+
+    Security alerts are the exception. They go to the people who run the installation, and the request that raised one may come from an attacker. Set their language with `SECURITY_ALERT_LOCALE` (default `en`). See [the admin panel](/security/admin-panel).
   </Tab>
 </Tabs>
 

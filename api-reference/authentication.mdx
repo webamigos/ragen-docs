@@ -12,7 +12,7 @@ Follow these steps inside your Ragen instance to generate a new key:
 
 <Steps>
   <Step title="Open API Keys">
-    Log in to your Ragen instance, then navigate to **Settings → API Keys**.
+    Log in to your Ragen instance, then navigate to **Organization → API keys**.
   </Step>
   <Step title="Create a new key">
     Click **Create API Key** and give the key a descriptive name.
@@ -29,7 +29,7 @@ Follow these steps inside your Ragen instance to generate a new key:
 </Steps>
 
 <Warning>
-  Your API key is a credential equivalent to a password. Never commit it to source control, log it, or expose it in client-side code. If a key is compromised, deactivate it immediately from **Settings → API Keys** and generate a replacement. Deactivated keys cannot be reactivated.
+  Your API key is a credential equivalent to a password. Never commit it to source control, log it, or expose it in client-side code. If a key is compromised, deactivate it immediately from **Organization → API keys** and generate a replacement. Deactivated keys cannot be reactivated.
 </Warning>
 
 ## API key format
@@ -124,7 +124,7 @@ The API returns standard HTTP status codes for authentication failures. Handle t
 | Status | Meaning                                                                          |
 |--------|----------------------------------------------------------------------------------|
 | `401`  | Invalid or missing API key. Check that the `Authorization` header is present and the key is correctly formatted. |
-| `403`  | API key has been deactivated. Generate a new key in **Settings → API Keys**.     |
+| `403`  | API key has been deactivated. Generate a new key in **Organization → API keys**.     |
 | `429`  | Rate limit exceeded. The SDK retries automatically; raw HTTP callers should back off and retry with exponential delay. |
 
 ### TypeScript SDK error classes

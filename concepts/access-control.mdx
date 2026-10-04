@@ -56,6 +56,18 @@ You can grant access at two levels:
 
 Folder permissions cascade automatically: granting access to a folder extends to all files and sub-folders inside it.
 
+### When a change reaches retrieval
+
+The knowledge base list shows a sharing change at once. Retrieval follows a moment later. Each indexed passage stores who may read it, and a background job (`syncDocumentAccess`) rewrites that after every share, revoke or move, usually within seconds. Until the job runs, answers still use the previous access.
+
+<Warning>
+  The job needs the worker and Redis. If Redis is unreachable when you change access, the change is saved but the job is not queued, and retrieval keeps the old access until the file's sharing changes again or the file is re-indexed.
+</Warning>
+
+<Note>
+  Upgrading from a release before this job existed? A share revoked then may still reach retrieval. Such a file is corrected the next time its sharing changes or it is re-indexed. No automatic sweep over older files exists yet.
+</Note>
+
 ## API key scope
 
 Each API key is bound to one organization, and to a scope chosen when the key is created: **one assistant**, or **the whole knowledge base**. The key cannot cross its organization boundary — cross-organization requests are always rejected — and within the organization the scope is a boundary too: a request that disagrees with it is refused with `403` rather than obliged. The scope cannot be changed afterwards; issue a new key instead.
