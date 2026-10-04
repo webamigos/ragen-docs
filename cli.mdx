@@ -26,6 +26,9 @@ The CLI asks for **Node.js 20 or newer**, which is deliberately lower than the *
 | `ragen create [dir]` | Scaffolds a self-hosted Ragen installation |
 | `ragen kb <command>` | Lists, uploads, checks and deletes knowledge base files — `ls`, `upload`, `status`, `rm`. Since 0.3.0 |
 | `ragen search <query>` | Prints the passages chat would answer from, without generating an answer. Since 0.3.0 |
+| `ragen login` | Checks an API key against an installation and saves it with the API address. Since 0.3.0 |
+| `ragen logout` | Forgets the saved address and key. Since 0.3.0 |
+| `ragen doctor` | Checks that this terminal can reach an installation and use its key. Since 0.3.0 |
 | `ragen brain <command>` | Reads [Ragen Brain](/concepts/brain#from-the-terminal) through the public API — `next`, `doctor`, `findings`, `pages`, `graph`, `query`, `export`. Needs `RAGEN_API_URL` and the API key of an owner or admin in `RAGEN_API_KEY` (or `--url` and `--api-key`). Since 0.2.0 |
 | `ragen help` | Lists every command, built or not |
 | `ragen version` | Prints the version of the CLI |
@@ -45,14 +48,51 @@ The scaffolder stays a separate package on purpose. It is the only thing exercis
 
 ## Connect to an installation
 
-Every command except `create` talks to an installation's [public API](/api-reference/quickstart). Create an API key under **Organization** → **API keys**, then point the CLI at it:
+Every command except `create` talks to an installation's [public API](/api-reference/quickstart). Create an API key under **Organization** → **API keys**, then save it once:
+
+```bash
+ragen login --url https://api.example.com
+```
+
+`ragen login` asks for the key without echoing it, checks it against the installation, and saves the address and key only if the key is accepted. You can also pipe the key in, which suits a CI job:
+
+```bash
+echo "$RAGEN_API_KEY" | ragen login --url https://api.example.com
+```
+
+<Warning>
+  The key is saved as plain text in `~/.config/ragen/config.json` (`$XDG_CONFIG_HOME/ragen/` when that is set, `%APPDATA%\ragen\` on Windows), readable only by your user. Run `ragen logout` to delete it. Prefer the hidden prompt or a pipe to `--api-key`, which lands in your shell history.
+</Warning>
+
+Environment variables take precedence over the saved connection, and `--url` and `--api-key` take precedence over both:
 
 ```bash
 export RAGEN_API_URL=https://api.example.com
 export RAGEN_API_KEY=sk-...
 ```
 
-`--url` and `--api-key` override the environment for a single command.
+### Check the connection
+
+```bash
+ragen doctor
+```
+
+```
+ok    node       v24.15.0
+ok    cli        ragen-cli 0.3.0
+ok    url        https://api.example.com (from ~/.config/ragen/config.json)
+ok    key        sk-749…sgF8 (from RAGEN_API_KEY)
+ok    api        answers
+ok    auth       the key is accepted
+ok    models     gpt-oss-120b, mistral-small-3.2
+-     brain      off for the organization, or the key's user is not an owner or admin
+```
+
+`ragen doctor` shows which address and key are in use and where each one came from, which is usually what is wrong when commands disagree. It tells "nothing answers at this address" — including the panel's address given in place of the API's — apart from "the key was refused", and warns when a newer CLI is on npm. It exits with a non-zero code when a check fails.
+
+<Note>
+  `ragen doctor` checks this client's path to an installation. Whether the installation itself is configured well — its environment, model routes and queue — is checked on the host, where the setup page and `npm run gateway:preflight` report it.
+</Note>
 
 ## Upload and manage documents
 
@@ -110,8 +150,6 @@ These commands are listed in `ragen help` under **Not built yet**:
 
 | Command | What it will do |
 |---|---|
-| `ragen login` | Authenticate against an installation with an API key |
-| `ragen doctor` | Check an installation's configuration — reachability, credentials, models, the queue |
 | `ragen plugin` | Manage custom MCP connectors |
 
 <Warning>
