@@ -26,6 +26,8 @@ The CLI asks for **Node.js 20 or newer**, which is deliberately lower than the *
 | `ragen create [dir]` | Scaffolds a self-hosted Ragen installation |
 | `ragen kb <command>` | Lists, uploads, checks and deletes knowledge base files — `ls`, `upload`, `status`, `rm`. Since 0.3.0 |
 | `ragen search <query>` | Prints the passages chat would answer from, without generating an answer. Since 0.3.0 |
+| `ragen ask <question>` | Asks the knowledge base as chat does, and streams the answer. Since 0.3.0 |
+| `ragen assistants ls` | Lists the assistants an API key can see. Since 0.3.0 |
 | `ragen login` | Checks an API key against an installation and saves it with the API address. Since 0.3.0 |
 | `ragen logout` | Forgets the saved address and key. Since 0.3.0 |
 | `ragen doctor` | Checks that this terminal can reach an installation and use its key. Since 0.3.0 |
@@ -143,6 +145,33 @@ ragen search "How many days do customers have to return a mug?"
 | `--max <n>` | At most `n` passages, 1–20. The default is your organization's retrieval setting |
 | `--assistant <id>` | Search one assistant's files; also read from `RAGEN_ASSISTANT_ID`. The API key must allow it |
 | `--json` | Print `context` and `file_ids` as JSON |
+
+## Ask a question
+
+```bash
+ragen ask "How many days do customers have to return a mug?"
+```
+
+`ragen ask` sends one message through [`/v1/chat`](/api-reference/chat) — the same retrieval, guardrails and usage limits as chat in the panel — and prints the answer as it is written.
+
+| Option | What it does |
+|---|---|
+| `--assistant <id>` | Ask one assistant; also read from `RAGEN_ASSISTANT_ID` |
+| `--reasoning <level>` | `low`, `medium` or `high`, for models that reason. Other models ignore it |
+| `--no-stream` | Print the answer once it is complete |
+| `--json` | Print `{"text": …}` once complete |
+
+`ragen ask` exits with a non-zero code when the answer is cut off before the API finishes it, so a script does not mistake a truncated answer for a short one. If an output guardrail stops an answer partway, the CLI notes that the text already printed was withdrawn and then prints the refusal.
+
+To find an assistant's id, list the assistants your key can see:
+
+```bash
+ragen assistants ls
+```
+
+<Note>
+  A key scoped to the whole knowledge base can list every assistant but cannot answer as one. The API refuses with `The API key is not allowed to do this`. Create a key scoped to that assistant instead.
+</Note>
 
 ## What is coming
 
