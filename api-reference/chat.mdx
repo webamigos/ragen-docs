@@ -18,7 +18,7 @@ POST /v1/chat
 Authorization: Bearer YOUR_API_KEY
 ```
 
-API keys are scoped to your organization. Create and manage keys in the Ragen dashboard under **Settings → API Keys**.
+API keys are scoped to your organization. Create and manage keys in the Ragen dashboard under **Organization → API keys**.
 
 <Note>
   Prefer [POST /v1/chat/completions](/api-reference/chat-completions) for new integrations. It supports multi-turn conversations, model override, temperature, and usage tracking via the standard OpenAI wire format.
@@ -36,7 +36,7 @@ API keys are scoped to your organization. Create and manage keys in the Ragen da
 </Note>
 
 <ParamField body="assistant_id" type="string">
-  The assistant (project) ID to query. Optional — the API key already carries a scope, and this field must agree with it. Find an ID in the dashboard URL when viewing a project (`…/projects/<assistant_id>`), via `GET /v1/assistants`, or under **Settings → Assistant settings**.
+  The assistant (project) ID to query. Optional — the API key already carries a scope, and this field must agree with it. Find an ID in the dashboard URL when viewing a project (`…/projects/<assistant_id>`), via `GET /v1/assistants`, or under **Organization → Assistant settings**.
 </ParamField>
 
 <ParamField body="content" type="string" required>

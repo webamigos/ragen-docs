@@ -18,7 +18,7 @@ POST /v1/chat/completions
 Authorization: Bearer YOUR_API_KEY
 ```
 
-API keys are scoped to your organization. Create and manage them under **Settings → API Keys** in the dashboard.
+API keys are scoped to your organization. Create and manage them under **Organization → API keys** in the dashboard.
 
 <Tip>
   Enable **debug mode** on your API key to save every API conversation as a thread visible under the project's **API threads** tab. This lets you inspect the full request and response during development without adding logging to your code.
@@ -36,7 +36,7 @@ API keys are scoped to your organization. Create and manage them under **Setting
 </Note>
 
 <ParamField body="assistant_id" type="string">
-  The assistant (project) ID to query. Optional, and a Ragen extension the OpenAI wire format has no field for — which is the point: an OpenAI-compatible client that cannot send it works against this endpoint, because the API key already carries the scope. Retrieve available IDs from `GET /v1/assistants` or from **Settings → Assistant settings** in the dashboard.
+  The assistant (project) ID to query. Optional, and a Ragen extension the OpenAI wire format has no field for — which is the point: an OpenAI-compatible client that cannot send it works against this endpoint, because the API key already carries the scope. Retrieve available IDs from `GET /v1/assistants` or from **Organization → Assistant settings** in the dashboard.
 </ParamField>
 
 <ParamField body="messages" type="array" required>

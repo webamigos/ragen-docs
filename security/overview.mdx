@@ -53,6 +53,8 @@ Ragen enforces two independent role hierarchies: platform-level (installation ad
 
 Every indexed chunk carries an `accessible_by` list in its vector-store payload. Non-admin queries apply that list as a filter *before* the vector search runs. Content a user cannot access cannot appear in an answer or a citation.
 
+The list follows sharing changes through a background job, not in the same request. When you share, revoke or move a file or folder, the worker rewrites the list for every file affected, usually within seconds. Until it runs, retrieval uses the previous list. See [Document permissions](/concepts/access-control#document-permissions).
+
 The common failure mode in other RAG systems is a permission filter on the file list while retrieval searches the whole corpus — the user never sees the document, but receives an answer synthesised from it. Test your own roles before going to production.
 
 **Tenant isolation** is enforced separately. Each organisation gets its own Qdrant collection, and a guard logs any query that touches a tenant-scoped collection without its organisation filter applied.
