@@ -132,6 +132,13 @@ Search the knowledge base and get back the most relevant document chunks, withou
 
 ## Configuring Claude Desktop
 
+There are two ways to connect, depending on where the MCP server runs:
+
+- **Your Ragen instance already runs the MCP server.** Connect to its `/mcp` endpoint through `mcp-remote`, below.
+- **It does not, or you would rather run it on your own machine.** Claude Desktop can start the server itself over stdio. See [Running the server locally over stdio](#running-the-server-locally-over-stdio).
+
+### Connecting to a deployed server
+
 Add a `ragen` entry to your Claude Desktop configuration file:
 
 ```json title="claude_desktop_config.json"
@@ -163,6 +170,40 @@ Add a `ragen` entry to your Claude Desktop configuration file:
 <Tip>
   After saving the config, restart Claude Desktop. You should see `ragen_chat`, `ragen_list_assistants` and `ragen_search_knowledge_base` in Claude's tool list. Call `ragen_list_assistants` first to confirm the connection is working and to retrieve your assistant IDs.
 </Tip>
+
+### Running the server locally over stdio
+
+Claude Desktop can start the MCP server as a local process and talk to it over stdin and stdout, with no `mcp-remote` in between. The server still calls your Ragen API for every tool, so the API has to be reachable from your machine.
+
+```json title="claude_desktop_config.json"
+{
+  "mcpServers": {
+    "ragen": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "TARGET_ENV=local",
+        "-e", "RAGEN_MCP_TRANSPORT=stdio",
+        "-e", "RAGEN_API_URL",
+        "-e", "RAGEN_API_KEY",
+        "ghcr.io/webamigos/ragen-mcp:latest"
+      ],
+      "env": {
+        "RAGEN_API_URL": "https://your-ragen-api.example.com",
+        "RAGEN_API_KEY": "YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+`RAGEN_API_URL` is the address of the Ragen API (the `api` service), not of the MCP server. `RAGEN_API_KEY` is the key on its own, without `Bearer`. Over stdio there is no request to carry an `Authorization` header, so the server reads the key from its environment instead.
+
+<Note>
+  Without `RAGEN_API_KEY` the server still starts and lists its tools, and every tool call returns an error naming the variable to set. That error is the first thing to check if the tools appear but never answer.
+</Note>
+
+Stdio needs Ragen 2.37.0 or later. Pin the image to a version you have checked (`ghcr.io/webamigos/ragen-mcp:2.37.0`) if you would rather not follow `latest`.
 
 ## Configuring Cursor
 
@@ -203,9 +244,9 @@ For custom agents or any MCP-compatible SDK, use Streamable HTTP transport and s
 
 ## Self-hosting the MCP server
 
-If you run Ragen yourself, the MCP server is a separate service — a thin one. It owns no data and holds no credentials: every tool call forwards the caller's own API key to the Ragen API, which does the authentication, the retrieval and the rate limiting. That is why it configures in three variables, plus two optional ones for OpenTelemetry.
+If you run Ragen yourself, the MCP server is a separate service — a thin one. It owns no data: every tool call forwards an API key to the Ragen API, which does the authentication, the retrieval and the rate limiting. That is why it configures in three variables, plus two for stdio and two optional ones for OpenTelemetry.
 
-Build it from the repository's `apps/mcp/Dockerfile`, whose build context is the repository root, and run `node dist/index.js`. It listens for Streamable HTTP on `/mcp`.
+Use the published image, `ghcr.io/webamigos/ragen-mcp`, or build it from the repository's `apps/mcp/Dockerfile`, whose build context is the repository root, and run `node dist/index.js`. By default it listens for Streamable HTTP on `/mcp`; with `RAGEN_MCP_TRANSPORT=stdio` it serves one client over stdin and stdout instead.
 
 ### Environment variables
 
@@ -215,10 +256,12 @@ Build it from the repository's `apps/mcp/Dockerfile`, whose build context is the
 | `RAGEN_API_URL` | **yes when deployed** | `http://localhost:3001` | Where the Ragen API answers. On a platform with private networking, use the internal address. |
 | `RAGEN_MCP_PORT` | no | `3300` | The port the server listens on. Prefer this over `PORT`. |
 | `PORT` | no | `3300` | Also honoured, for single-container hosts that inject it. `RAGEN_MCP_PORT` wins when both are set — three services in the Ragen repository read a bare `PORT`, and a checkout's root `.env.local` is shared by all of them, so one value moves all three. |
+| `RAGEN_MCP_TRANSPORT` | no | `http` | `http` serves Streamable HTTP on `/mcp`. `stdio` serves one client over stdin and stdout, for a client that starts the server as a local process. Logs then go to stderr. |
+| `RAGEN_API_KEY` | over stdio | — | The API key used for every tool call over stdio, written without `Bearer`. Ignored over HTTP, where each caller sends its own. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | no | — | Enables tracing. Without it, telemetry is a no-op. |
 | `OTEL_SERVICE_NAME` | no | — | The service name in traces. |
 
-There is nothing else — **no database, no Redis, no API key of its own**. A key belongs to whoever is calling, arrives per request, and is never stored.
+There is nothing else — **no database, no Redis, no API key of its own** over HTTP. There, a key belongs to whoever is calling, arrives per request, and is never stored. Over stdio the server serves one client, so that client's key comes from `RAGEN_API_KEY`.
 
 <Warning>
   `TARGET_ENV` is what makes `RAGEN_API_URL` required. A deployment that leaves it unset would read as `local`, accept the localhost fallback, boot cleanly, and then fail every tool call with a connection error. Recent versions refuse to start instead — if yours boots without it, set it anyway and check `RAGEN_API_URL` really points at your API.
