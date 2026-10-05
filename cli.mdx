@@ -1,10 +1,10 @@
 ---
-title: 'Ragen CLI: Install the ragen Command and Scaffold from Your Terminal'
+title: 'Ragen CLI: Scaffold, Upload Documents and Search from Your Terminal'
 sidebarTitle: 'CLI'
-description: 'Install the Ragen command line with npm, scaffold an installation without leaving your terminal, and see which commands are coming next.'
+description: 'Install the Ragen command line with npm, scaffold an installation, upload documents and wait for them to be indexed, and search the knowledge base without leaving your terminal.'
 ---
 
-The Ragen CLI puts a `ragen` command on your `PATH`. It is early: two commands do real work today, and it grows toward managing an installation — signing in, checking its health, moving documents in and out — without leaving your terminal.
+The Ragen CLI puts a `ragen` command on your `PATH`. It scaffolds an installation, moves documents in and out of its knowledge base, and searches it — and it grows toward managing an installation end to end, signing in and checking its health included, without leaving your terminal.
 
 ```bash
 npm install -g ragen-cli
@@ -17,13 +17,20 @@ ragen --help
 
 ## Requirements
 
-The CLI asks for **Node.js 20 or newer**, which is deliberately lower than the **Node.js 24** a Ragen installation itself needs. This is a client — refusing to print help on an older runtime would be needlessly strict. `ragen create` still enforces the real requirement at the point where an older Node would damage the install.
+The CLI asks for **Node.js 22 or newer** (since 0.3.0; earlier versions accepted 20, which no longer gets security fixes). That is deliberately lower than the **Node.js 24** a Ragen installation itself needs. This is a client — refusing to print help on an older runtime would be needlessly strict. `ragen create` still enforces the real requirement at the point where an older Node would damage the install.
 
 ## What it does today
 
 | Command | What it does |
 |---|---|
 | `ragen create [dir]` | Scaffolds a self-hosted Ragen installation |
+| `ragen kb <command>` | Lists, uploads, checks and deletes knowledge base files — `ls`, `upload`, `status`, `rm`. Since 0.3.0 |
+| `ragen search <query>` | Prints the passages chat would answer from, without generating an answer. Since 0.3.0 |
+| `ragen ask <question>` | Asks the knowledge base as chat does, and streams the answer. Since 0.3.0 |
+| `ragen assistants ls` | Lists the assistants an API key can see. Since 0.3.0 |
+| `ragen login` | Checks an API key against an installation and saves it with the API address. Since 0.3.0 |
+| `ragen logout` | Forgets the saved address and key. Since 0.3.0 |
+| `ragen doctor` | Checks that this terminal can reach an installation and use its key. Since 0.3.0 |
 | `ragen brain <command>` | Reads [Ragen Brain](/concepts/brain#from-the-terminal) through the public API — `next`, `doctor`, `findings`, `pages`, `graph`, `query`, `export`. Needs `RAGEN_API_URL` and the API key of an owner or admin in `RAGEN_API_KEY` (or `--url` and `--api-key`). Since 0.2.0 |
 | `ragen help` | Lists every command, built or not |
 | `ragen version` | Prints the version of the CLI |
@@ -41,15 +48,138 @@ ragen create my-ragen-app --skip-docker
 
 The scaffolder stays a separate package on purpose. It is the only thing exercising the first-run path, it is tested on every change to the repository, and a second copy of that wizard inside the CLI would drift out of step without anything noticing.
 
+## Connect to an installation
+
+Every command except `create` talks to an installation's [public API](/api-reference/quickstart). Create an API key under **Organization** → **API keys**, then save it once:
+
+```bash
+ragen login --url https://api.example.com
+```
+
+`ragen login` asks for the key without echoing it, checks it against the installation, and saves the address and key only if the key is accepted. You can also pipe the key in, which suits a CI job:
+
+```bash
+echo "$RAGEN_API_KEY" | ragen login --url https://api.example.com
+```
+
+<Warning>
+  The key is saved as plain text in `~/.config/ragen/config.json` (`$XDG_CONFIG_HOME/ragen/` when that is set, `%APPDATA%\ragen\` on Windows), readable only by your user. Run `ragen logout` to delete it. Prefer the hidden prompt or a pipe to `--api-key`, which lands in your shell history.
+</Warning>
+
+Environment variables take precedence over the saved connection, and `--url` and `--api-key` take precedence over both. The saved key is only ever sent to the address it was saved for: when `--url` or `RAGEN_API_URL` names a different host, pass a key for it explicitly, or the command stops rather than send the saved one there.
+
+```bash
+export RAGEN_API_URL=https://api.example.com
+export RAGEN_API_KEY=sk-...
+```
+
+### Check the connection
+
+```bash
+ragen doctor
+```
+
+```
+ok    node       v24.15.0
+ok    cli        ragen-cli 0.3.0
+ok    url        https://api.example.com (from ~/.config/ragen/config.json)
+ok    key        sk-749…sgF8 (from RAGEN_API_KEY)
+ok    api        answers
+ok    auth       the key is accepted
+ok    models     gpt-oss-120b, mistral-small-3.2
+-     brain      off for the organization, or the key's user is not an owner or admin
+```
+
+`ragen doctor` shows which address and key are in use and where each one came from, which is usually what is wrong when commands disagree. It tells "nothing answers at this address" — including the panel's address given in place of the API's — apart from "the key was refused", and warns when a newer CLI is on npm. It exits with a non-zero code when a check fails.
+
+<Note>
+  `ragen doctor` checks this client's path to an installation. Whether the installation itself is configured well — its environment, model routes and queue — is checked on the host, where the setup page and `npm run gateway:preflight` report it.
+</Note>
+
+## Upload and manage documents
+
+`ragen kb` works on the knowledge base's files through [`/v1/files`](/api-reference/files):
+
+```bash
+ragen kb ls                          # the newest 20 files
+ragen kb upload docs/*.pdf --wait    # upload, then wait until each one is indexed
+ragen kb status file-abc123          # uploaded, processed or error
+ragen kb rm file-abc123              # delete a file and its chunks
+```
+
+| Subcommand | Options |
+|---|---|
+| `ls` | `--limit <n>` for a different page size, `--all` for every file |
+| `upload <file...>` | `--wait` to wait until indexed, `--timeout <seconds>` (default 600) |
+| `status <file-id...>` | `--wait`, `--timeout <seconds>` |
+| `rm <file-id...>` | — |
+
+Every subcommand accepts `--json` to print the API's response instead of a table.
+
+<Note>
+  **The API key decides where files go.** A key scoped to the whole knowledge base uploads to and lists the files that belong to no assistant. A key scoped to an assistant works on that assistant's files. The CLI has no option for this — it would only be able to disagree with the server.
+</Note>
+
+`upload` takes files, not directories. Let your shell expand a pattern such as `docs/*.pdf`.
+
+### Use it in a script
+
+Both `upload --wait` and `status` exit with a non-zero code when a file fails to index. `--wait` also exits non-zero when a file is still indexing at the timeout, and prints the `ragen kb status` command to check it later.
+
+```bash
+ragen kb upload handbook.pdf policies/*.md --wait || exit 1
+```
+
+Uploads are rate limited per minute. When a batch reaches the limit, the CLI waits as long as the server asks and carries on: you see `Rate limited; waiting 60s before note-11.md.` instead of the rest failing. A limit that does not lift within two minutes — such as a monthly usage limit — is different: the CLI prints the server's message and stops the batch. While waiting for indexing it checks all files in a single request every few seconds, so a large batch does not use up the limit by itself. If checking fails partway, it stops waiting but still prints what was uploaded — with `--json`, the file ids — and exits with a non-zero code.
+
+## Search the knowledge base
+
+```bash
+ragen search "How many days do customers have to return a mug?"
+```
+
+`ragen search` calls [`/v1/search`](/api-reference/search). It prints the same PII-redacted context block that the chat endpoint passes to its model, followed by the files it came from. When an answer in chat looks wrong, this shows whether retrieval found the right passage or the model ignored it.
+
+| Option | What it does |
+|---|---|
+| `--max <n>` | At most `n` passages, 1–20. The default is your organization's retrieval setting |
+| `--assistant <id>` | Search one assistant's files; also read from `RAGEN_ASSISTANT_ID`. The API key must allow it |
+| `--json` | Print `context` and `file_ids` as JSON |
+
+## Ask a question
+
+```bash
+ragen ask "How many days do customers have to return a mug?"
+```
+
+`ragen ask` sends one message through [`/v1/chat`](/api-reference/chat) — the same retrieval, guardrails and usage limits as chat in the panel — and prints the answer as it is written. When you redirect the output to a file or a pipe, it waits for the complete answer instead, so text a guardrail withdraws never lands there; pass `--stream` to stream anyway.
+
+| Option | What it does |
+|---|---|
+| `--assistant <id>` | Ask one assistant; also read from `RAGEN_ASSISTANT_ID` |
+| `--reasoning <level>` | `low`, `medium` or `high`, for models that reason. Other models ignore it |
+| `--no-stream` | Print the answer once it is complete — the default when output is not a terminal |
+| `--stream` | Stream even when output is not a terminal |
+| `--json` | Print `{"text": …}` once complete |
+
+`ragen ask` exits with a non-zero code when the answer is cut off before the API finishes it, so a script does not mistake a truncated answer for a short one. If an output guardrail stops an answer partway, the CLI notes that the text already printed was withdrawn and then prints the refusal.
+
+To find an assistant's id, list the assistants your key can see:
+
+```bash
+ragen assistants ls
+```
+
+<Note>
+  A key scoped to the whole knowledge base can list every assistant but cannot answer as one. The API refuses with `The API key is not allowed to do this`. Create a key scoped to that assistant instead.
+</Note>
+
 ## What is coming
 
 These commands are listed in `ragen help` under **Not built yet**:
 
 | Command | What it will do |
 |---|---|
-| `ragen login` | Authenticate against an installation with an API key |
-| `ragen doctor` | Check an installation's configuration — reachability, credentials, models, the queue |
-| `ragen kb` | List knowledge bases and upload documents from the terminal |
 | `ragen plugin` | Manage custom MCP connectors |
 
 <Warning>
@@ -76,7 +206,7 @@ npm install -g ragen-cli@latest
     What is being built next, across the product and the tooling around it.
   </Card>
   <Card title="API Reference" icon="code" href="/api-reference/quickstart">
-    The surface the CLI will speak to once it can sign in.
+    The endpoints behind `ragen kb`, `ragen search` and `ragen brain`.
   </Card>
   <Card title="Request a Command" icon="github" href="https://github.com/webamigos/RagenAI/issues">
     Tell us what you would automate first — that is what decides the order.
