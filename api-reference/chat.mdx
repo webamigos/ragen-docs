@@ -55,6 +55,10 @@ API keys are scoped to your organization. Create and manage keys in the Ragen da
   OpenAI-style reasoning effort: `"low"`, `"medium"`, or `"high"`. Forwarded to the underlying model; only honored by reasoning-capable models (e.g. GPT-o series). When set, streaming responses additionally emit `{"reasoning": "..."}` events with the model's intermediate thinking.
 </ParamField>
 
+<ParamField body="sources" type="boolean" default="false">
+  When `true`, the response also lists the documents the answer was drawn from. See [Sources](#sources). Off by default, so the response is unchanged unless you ask.
+</ParamField>
+
 ## Response
 
 ### Non-streaming (default)
@@ -73,7 +77,7 @@ A JSON object with a single `text` field:
 
 ### Streaming (`stream: true`)
 
-Returns a `text/event-stream` response. Two event shapes may appear, followed by a `[DONE]` sentinel:
+Returns a `text/event-stream` response. Up to three event shapes may appear (the third only when you ask for [sources](#sources)), followed by a `[DONE]` sentinel:
 
 ```
 HTTP/1.1 200 OK
@@ -93,8 +97,57 @@ data: [DONE]
 |---|---|
 | `{"text": "..."}` | A chunk of the final answer |
 | `{"reasoning": "..."}` | A chunk of intermediate reasoning (only when `reasoning_effort` is set and the model supports it) |
+| `{"sources": [...]}` | One event just before `[DONE]`, only when the request set `sources: true` |
 
 The stream always ends with `data: [DONE]`. Display `reasoning` chunks separately from the answer or ignore them — most users don't need to show them.
+
+### Sources
+
+Set `sources: true` to get back the documents the answer was drawn from — the files retrieval put in front of the model, most relevant first. Use it to show a reader where an answer came from, or to link to the original documents.
+
+```json
+{
+  "text": "Customers can return items within 30 days of purchase.",
+  "sources": [
+    { "fileId": "9f2c…", "fileName": "returns-policy.pdf", "rank": 1 },
+    {
+      "fileId": "4b7a…",
+      "fileName": "Returns",
+      "rank": 2,
+      "brain": {
+        "pageTitle": "Returns",
+        "sources": [{ "fileName": "returns-policy.pdf", "span": "§2" }]
+      }
+    }
+  ]
+}
+```
+
+<ResponseField name="sources[].fileId" type="string">
+  The file's ID.
+</ResponseField>
+
+<ResponseField name="sources[].fileName" type="string | null">
+  The file's name, or `null` for documents ingested before names were stored.
+</ResponseField>
+
+<ResponseField name="sources[].rank" type="integer">
+  `1` is the most relevant.
+</ResponseField>
+
+<ResponseField name="sources[].brain" type="object">
+  Present only when the file is a published [Ragen Brain](/concepts/brain) page. `pageTitle` is the page's title, and `sources` lists the documents the page was built from, with `span` locating the passage in each. Only documents the API key is allowed to read are listed: a key that can read a page but not all of its documents gets the page and a shorter list, never the names of documents it cannot open.
+</ResponseField>
+
+When streaming, the list arrives as a single `{"sources": [...]}` event just before `[DONE]`, so it reflects the finished answer:
+
+```
+data: {"text":"Customers can return items within 30 days."}
+data: {"sources":[{"fileId":"9f2c…","fileName":"returns-policy.pdf","rank":1}]}
+data: [DONE]
+```
+
+An answer that a guardrail withheld returns `"sources": []`. Documents outside your key's scope never appear, because retrieval itself only reads what the key may read.
 
 ## Examples
 
