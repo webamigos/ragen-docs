@@ -104,6 +104,50 @@ const ragen = new Ragen({
 
     console.log(text);
     ```
+
+    ### Showing where an answer came from
+
+    From `0.4.0`, ask for the documents an answer was drawn from. Nothing is sent unless you opt in, so existing code is unaffected.
+
+    ```ts
+    const completion = await ragen.chat.completions.create({
+      messages: [{ role: 'user', content: 'What is our refund policy?' }],
+      ragen_sources: true,
+    });
+
+    for (const source of completion.ragen_sources ?? []) {
+      console.log(source.rank, source.fileName, source.brain?.pageTitle);
+    }
+    ```
+
+    When streaming, the list arrives on one trailing chunk with no `choices`, after the usage chunk:
+
+    ```ts
+    for await (const chunk of ragen.chat.completions.stream({
+      messages: [{ role: 'user', content: 'Summarize our onboarding process' }],
+      ragen_sources: true,
+    })) {
+      process.stdout.write(chunk.choices[0]?.delta?.content ?? '');
+      if (chunk.ragen_sources) {
+        console.log('\nSources:', chunk.ragen_sources.map((s) => s.fileName));
+      }
+    }
+    ```
+
+    The native chat endpoint takes `sources: true` instead. `ragen.chat.send` returns `sources` next to `text`, and `ragen.chat.sendStream` yields one `{ type: 'sources' }` event; `sendToString` ignores it and returns only the text.
+
+    ```ts
+    const { text, sources } = await ragen.chat.send({
+      content: 'What is our refund policy?',
+      sources: true,
+    });
+    ```
+
+    Each source is a `ChatSource`: `fileId`, `fileName` (`null` for older documents), `rank` (`1` is the most relevant), and, for a published [Ragen Brain](/concepts/brain) page, `brain` with the page's title and the documents it was built from that your API key may open. See [Chat](/api-reference/chat#sources) and [Chat Completions](/api-reference/chat-completions#including-sources) for the wire format.
+
+    <Note>
+      This needs a Ragen server that supports `sources` / `ragen_sources`. An older server rejects the unknown field with `400`, so only set it against an instance that has been updated.
+    </Note>
   </Tab>
 
   <Tab title="Files">
