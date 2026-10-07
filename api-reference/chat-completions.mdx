@@ -67,6 +67,10 @@ API keys are scoped to your organization. Create and manage them under **Organiz
   Streaming options. Pass `{ "include_usage": true }` to receive a trailing usage chunk after `[DONE]`. See [Including usage in streams](#including-usage-in-streams).
 </ParamField>
 
+<ParamField body="ragen_sources" type="boolean" default="false">
+  Ragen extension. When `true`, the response also lists the documents the answer was drawn from. See [Including sources](#including-sources). Off by default, so an OpenAI client sees exactly the format it expects.
+</ParamField>
+
 ### Message roles
 
 | Role | Purpose |
@@ -289,6 +293,48 @@ Chat Completions run a full RAG pipeline (hybrid search, reranking when the depl
 
 Both streaming and non-streaming requests count equally. When the limit is hit, back off with jitter before retrying.
 
+### Including sources
+
+Set `ragen_sources: true` to get the documents the answer was drawn from — the files retrieval put in front of the model, most relevant first. The field is namespaced with `ragen_` so it can never collide with one OpenAI adds later, and clients that do not ask never see it.
+
+In a non-streaming response it is a top-level field of the completion object:
+
+```json
+{
+  "id": "chatcmpl-7a2b4c...",
+  "object": "chat.completion",
+  "choices": [ … ],
+  "usage": { … },
+  "ragen_sources": [
+    { "fileId": "9f2c…", "fileName": "returns-policy.pdf", "rank": 1 },
+    {
+      "fileId": "4b7a…",
+      "fileName": "Returns",
+      "rank": 2,
+      "brain": {
+        "pageTitle": "Returns",
+        "sources": [{ "fileName": "returns-policy.pdf", "span": "§2" }]
+      }
+    }
+  ]
+}
+```
+
+When streaming, it arrives as one trailing chunk with `choices: []` — like the usage chunk — after the final content chunk and any usage chunk, and before `data: [DONE]`:
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion.chunk",
+  "created": 1744664400,
+  "model": "gpt-5.4",
+  "choices": [],
+  "ragen_sources": [{ "fileId": "9f2c…", "fileName": "returns-policy.pdf", "rank": 1 }]
+}
+```
+
+Each source has `fileId`, `fileName` (`null` for documents ingested before names were stored), and `rank` (`1` is the most relevant). When the file is a published [Ragen Brain](/concepts/brain) page it also has `brain`, with the page's `pageTitle` and the `sources` it was built from (`fileName` and the `span` locating the passage). Only documents the API key may read are listed. An answer that a guardrail withheld returns `"ragen_sources": []`.
+
 ## Differences vs. `POST /v1/chat`
 
 The native [POST /v1/chat](/api-reference/chat) endpoint predates this one and offers a simpler interface (single `content` string, optional `context`). Both are supported:
@@ -302,5 +348,6 @@ The native [POST /v1/chat](/api-reference/chat) endpoint predates this one and o
 | `max_tokens` | No | Yes |
 | Page context injection | Yes (`context` field) | No — use `messages` instead |
 | Usage in streams | No | Opt-in via `stream_options` |
+| Sources | Opt-in via `sources` | Opt-in via `ragen_sources` |
 
 Use `/v1/chat/completions` for any new integration. Keep `/v1/chat` for the Ragen embed widget and other existing Ragen-native consumers.
