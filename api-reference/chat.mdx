@@ -77,7 +77,7 @@ A JSON object with a single `text` field:
 
 ### Streaming (`stream: true`)
 
-Returns a `text/event-stream` response. Two event shapes may appear, followed by a `[DONE]` sentinel:
+Returns a `text/event-stream` response. Up to three event shapes may appear (the third only when you ask for [sources](#sources)), followed by a `[DONE]` sentinel:
 
 ```
 HTTP/1.1 200 OK
