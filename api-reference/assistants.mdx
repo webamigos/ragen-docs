@@ -31,7 +31,7 @@ Ragen maps OpenAI assistant fields to Ragen project concepts:
 
 | OpenAI field | Ragen meaning | Notes |
 |---|---|---|
-| `id` | `asst-<projectId>` | Always prefixed with `asst-` |
+| `id` | `<projectId>` | The bare project UUID. The legacy `asst-<projectId>` form is still accepted wherever an assistant ID is sent |
 | `name` | Project title | |
 | `instructions` | Per-project system prompt | Merged on top of the org default |
 | `model` | — | Read-through from org default; per-project override not yet persisted |
@@ -76,7 +76,7 @@ Ragen maps OpenAI assistant fields to Ragen project concepts:
 `DELETE /v1/assistants/{id}` — deletes the project and returns:
 
 ```json
-{ "id": "asst-abc123", "object": "assistant.deleted", "deleted": true }
+{ "id": "11111111-1111-4111-8111-111111111111", "object": "assistant.deleted", "deleted": true }
 ```
 
 **Self-delete protection:** You cannot delete the assistant your API key is bound to — that would revoke the key's own context. Attempting it returns a `400` error. A key scoped to one assistant therefore deletes nothing at all: its own is refused here, and every other one is refused as out of scope with `403`.
@@ -106,7 +106,7 @@ This prevents accidentally breaking your own chat and files context. Issue or ro
       name: 'Support Bot',
       instructions: 'Respond concisely. If unsure, say so.',
     });
-    console.log(assistant.id); // asst-abc123...
+    console.log(assistant.id); // 11111111-1111-4111-8111-111111111111...
 
     // List
     const assistants = await ragen.beta.assistants.list();
@@ -115,11 +115,11 @@ This prevents accidentally breaking your own chat and files context. Issue or ro
     }
 
     // Retrieve
-    const a = await ragen.beta.assistants.retrieve('asst-abc123');
+    const a = await ragen.beta.assistants.retrieve('11111111-1111-4111-8111-111111111111');
     console.log(a.instructions);
 
     // Update
-    await ragen.beta.assistants.update('asst-abc123', {
+    await ragen.beta.assistants.update('11111111-1111-4111-8111-111111111111', {
       name: 'Support Bot v2',
     });
     ```
@@ -146,10 +146,10 @@ This prevents accidentally breaking your own chat and files context. Issue or ro
         print(a.id, a.name)
 
     # Retrieve
-    a = client.beta.assistants.retrieve("asst-abc123")
+    a = client.beta.assistants.retrieve("11111111-1111-4111-8111-111111111111")
 
     # Update
-    a = client.beta.assistants.update("asst-abc123", name="Support Bot v2")
+    a = client.beta.assistants.update("11111111-1111-4111-8111-111111111111", name="Support Bot v2")
     ```
   </Tab>
   <Tab title="curl">
@@ -168,17 +168,17 @@ This prevents accidentally breaking your own chat and files context. Issue or ro
       -H "Authorization: Bearer YOUR_API_KEY"
 
     # Retrieve
-    curl $RAGEN_BASE_URL/assistants/asst-abc123 \
+    curl $RAGEN_BASE_URL/assistants/11111111-1111-4111-8111-111111111111 \
       -H "Authorization: Bearer YOUR_API_KEY"
 
     # Update
-    curl -X PATCH $RAGEN_BASE_URL/assistants/asst-abc123 \
+    curl -X PATCH $RAGEN_BASE_URL/assistants/11111111-1111-4111-8111-111111111111 \
       -H "Authorization: Bearer YOUR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{"name": "Support Bot v2"}'
 
     # Delete
-    curl -X DELETE $RAGEN_BASE_URL/assistants/asst-abc123 \
+    curl -X DELETE $RAGEN_BASE_URL/assistants/11111111-1111-4111-8111-111111111111 \
       -H "Authorization: Bearer YOUR_API_KEY"
     ```
   </Tab>

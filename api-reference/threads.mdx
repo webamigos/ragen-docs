@@ -44,7 +44,7 @@ Authorization: Bearer YOUR_API_KEY
 </ParamField>
 
 <ParamField body="assistant_id" type="string">
-  **Ragen extension.** Bind the thread to a specific assistant using its `asst-<projectId>` ID. Optional, and it must agree with the key's scope: a key bound to one assistant refuses any other with `403`, and a knowledge-base key refuses the field entirely and opens the thread against the knowledge base. Omit it and the key decides. See [Authentication](/api-reference/authentication#what-a-key-can-reach).
+  **Ragen extension.** Bind the thread to a specific assistant using its assistant ID (the bare project UUID; the legacy `asst-<projectId>` form is still accepted). Optional, and it must agree with the key's scope: a key bound to one assistant refuses any other with `403`, and a knowledge-base key refuses the field entirely and opens the thread against the knowledge base. Omit it and the key decides. See [Authentication](/api-reference/authentication#what-a-key-can-reach).
 </ParamField>
 
 ### List threads
@@ -152,7 +152,7 @@ Threads are storage only. To generate a response and persist it, follow this man
     ```http
     POST /v1/chat/completions
     {
-      "assistant_id": "asst-abc123",
+      "assistant_id": "11111111-1111-4111-8111-111111111111",
       "messages": [
         { "role": "user", "content": "What is our return policy?" }
       ]
@@ -181,7 +181,7 @@ Threads are storage only. To generate a response and persist it, follow this man
     // Create a thread
     const thread = await ragen.beta.threads.create({
       title: 'Support conversation',
-      assistant_id: 'asst-abc123',
+      assistant_id: '11111111-1111-4111-8111-111111111111',
     });
 
     // Add a user message
@@ -192,7 +192,7 @@ Threads are storage only. To generate a response and persist it, follow this man
 
     // Generate a reply
     const completion = await ragen.chat.completions.create({
-      assistantId: 'asst-abc123',
+      assistantId: '11111111-1111-4111-8111-111111111111',
       messages: [{ role: 'user', content: 'What is our return policy?' }],
     });
     const reply = completion.choices[0].message.content;
