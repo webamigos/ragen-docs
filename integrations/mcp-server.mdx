@@ -59,7 +59,7 @@ Send a message to a Ragen assistant and receive its answer.
 **Error response:**
 
 ```json
-{ "success": false, "status": 403, "error": "This API key is scoped to a different assistant than 'asst-abc123'" }
+{ "success": false, "status": 403, "error": "This API key is scoped to a different assistant than '11111111-1111-4111-8111-111111111111'" }
 ```
 
 A `403` means the key and the request disagree about the assistant — either you named one the key is not scoped to, or you named one at all on a knowledge-base key. A `404` still means the assistant does not exist for this organization.
@@ -80,8 +80,8 @@ List the assistants your API key can reach. A knowledge-base key sees every assi
 {
   "success": true,
   "assistants": [
-    { "id": "asst-abc123", "name": "Support Bot" },
-    { "id": "asst-def456", "name": "Sales Bot" }
+    { "id": "11111111-1111-4111-8111-111111111111", "name": "Support Bot" },
+    { "id": "22222222-2222-4222-8222-222222222222", "name": "Sales Bot" }
   ]
 }
 ```
@@ -127,7 +127,7 @@ Search the knowledge base and get back the most relevant document chunks, withou
 **Error response:**
 
 ```json
-{ "success": false, "status": 403, "error": "This API key is scoped to a different assistant than 'asst-abc123'" }
+{ "success": false, "status": 403, "error": "This API key is scoped to a different assistant than '11111111-1111-4111-8111-111111111111'" }
 ```
 
 ## Configuring Claude Desktop
