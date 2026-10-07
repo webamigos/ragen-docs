@@ -167,9 +167,21 @@ The **Graph** tab draws the pages and the relations between them. Click a page t
 
 Line weight follows the evidence: thick for a quoted relation, thinner and amber for an unconfirmed one, thinnest and faint for an inferred one. A page with an open finding is drawn larger and always labelled. **Groups** lists clusters of closely related pages.
 
+## Filtering by language
+
+When the documents Brain reads are in more than one language, a **Language** selector appears in the header beside the assistant and extraction buttons. Pick a language and every tab narrows to the documents in it, and the pages and findings that cite them. Choose **Not detected** to see documents whose language could not be determined, or **All languages** to clear it. Each option shows how many documents it covers.
+
+The choice stays when you switch tabs. With one language, or none detected, there is nothing to choose and the selector is not shown.
+
 ## Documents
 
-The **Documents** tab shows, for each document, how many approved pages and candidates cite it and whether it is in retrieval.
+The **Documents** tab shows what Brain extracted from each file and how much of it has been reviewed.
+
+- **Three counts** across the top: all documents, those with **nothing extracted**, and those **excluded from search**. Open the nothing-extracted count to list just those documents.
+- **Knowledge in Brain** — a bar per document, approved pages in green and candidates beside them. All bars share one scale, so a long document looks long next to a short one.
+- **State** — whether extraction is *not yet run*, *processing*, *extracted*, *nothing extracted*, or *failed*, with whether the document is still searched by chat underneath.
+- A document whose language could not be detected is marked **Check language**. A document that has a counterpart in another language shows it, with the counterpart's own counts (each page is counted once).
+- When extraction failed, a **Retry extraction** button appears for people who may curate.
 
 <Frame caption="Documents and their retrieval state. The first row was uploaded into Brain alone and is not searchable.">
   <img src="/images/brain/brain-documents.webp" alt="The Brain Documents tab listing documents with approved page and candidate counts, retrieval state, and actions" />
@@ -218,6 +230,8 @@ A published page is retrieved like any document, under its own access list. When
 </Frame>
 
 A reader sees only the source documents they are allowed to open. If a page was widened to someone who cannot read any of its sources, they see the page and **none of its sources are visible to you** in place of the list.
+
+The [chat API](/api-reference/chat#sources) can return the same thing: with `sources: true` (or `ragen_sources: true` on [Chat Completions](/api-reference/chat-completions#including-sources)), a source that is a published Brain page carries a `brain` object with the page's title and the documents it was built from, limited to the documents the API key may read.
 
 ## Exporting a bundle
 
