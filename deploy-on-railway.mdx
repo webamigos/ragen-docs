@@ -1,0 +1,75 @@
+---
+title: 'Deploy Ragen AI on Railway in One Click'
+sidebarTitle: 'Deploy on Railway'
+description: 'Run the whole Ragen AI stack on Railway from a template — web app, API, worker, Ragen Brain, MCP server and admin panel — with one OpenRouter key.'
+---
+
+The fastest way to try Ragen without installing anything is the Railway template. It deploys the whole stack into a Railway project and asks you for one value: an OpenRouter API key.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/QufTr4?referralCode=0sAYuo&utm_medium=integration&utm_source=template&utm_campaign=generic)
+
+## What you get
+
+| Group | Services |
+|---|---|
+| Ragen App | `web` (the panel and chat), `migrate` (applies the database migrations, then exits) |
+| Ragen API | `api` |
+| Ragen Worker | `worker`, with `docling` beside it for document parsing |
+| Ragen MCP | `mcp` — exposes your assistants to Claude Desktop, Cursor and other MCP clients |
+| Ragen Admin | `admin` — the platform administration panel |
+| Ragen Token Vault | `vault` and its own Postgres |
+| Storage | Postgres, Redis, Qdrant and a Railway bucket for uploaded files |
+
+- **Models**, all through OpenRouter: Claude Sonnet 5.5 answers, Claude Haiku 5.5 rephrases questions and summarises documents, OpenAI `text-embedding-3-small` embeds them.
+- **[Ragen Brain](/concepts/brain)** is switched on from the first boot.
+- **Every secret is generated** by the template — session secrets, the encryption key, database and Redis passwords.
+- `web`, `mcp` and `admin` get public Railway domains. Everything else, Qdrant included, is reachable only on Railway's private network.
+
+## Steps
+
+<Steps>
+  <Step title="Get an OpenRouter key">
+    Create one at [openrouter.ai/keys](https://openrouter.ai/keys). One key serves both chat and embeddings, so the knowledge base works from your first upload.
+  </Step>
+  <Step title="Deploy the template">
+    Click **Deploy on Railway** above, paste the key into `OPENROUTER_API_KEY`, and click **Deploy**. Docling is the one service built from source; the rest are published images, so the first deploy takes a few minutes.
+  </Step>
+  <Step title="Create the first account">
+    Open the `web` service's public domain. The first account you create becomes the platform administrator, and the template ships no demo credentials.
+  </Step>
+  <Step title="Ask your first question">
+    Upload a document under **Knowledge base**, wait until it is processed, and ask about it in a new chat. Answers cite the passages they came from.
+  </Step>
+</Steps>
+
+## Before you rely on it
+
+<Warning>
+  **Back up `ENCRYPTION_MASTER_KEY`** from the `web` service's variables. Thread messages are encrypted under it, and a lost key cannot be recovered — the messages become unreadable.
+</Warning>
+
+What the template deliberately leaves out:
+
+- **PII masking.** There is no Presidio in the template, so personal data is not masked before it reaches the model. See [PII masking](/security/pii-masking) to add it.
+- **Content moderation.** It needs an OpenAI key (`OPENAI_MODERATION_KEY`). Without one, the content-moderation guardrail logs that it is not configured and lets turns through.
+- **Mail.** Verification links and invitations are written to the log until you set `RESEND_API_KEY` or the `SMTP_*` variables on `web`.
+- **Connectors.** The MCP connector services (Google, ClickUp, HubSpot) are not part of it; the [token vault](/configuration/token-vault) they need is.
+
+The encryption provider is `local` — a key in an environment variable. For production, consider a KMS; see [Encryption](/security/encryption).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Ragen Brain" icon="brain" href="/concepts/brain">
+    Turn your documents into reviewed, published knowledge pages.
+  </Card>
+  <Card title="MCP server" icon="plug" href="/integrations/mcp-server">
+    Connect Claude Desktop or Cursor to your assistants.
+  </Card>
+  <Card title="Models" icon="microchip" href="/configuration/models">
+    Use a different provider or model.
+  </Card>
+  <Card title="Self-hosting" icon="server" href="/self-hosting">
+    Run the same stack on your own infrastructure.
+  </Card>
+</CardGroup>
