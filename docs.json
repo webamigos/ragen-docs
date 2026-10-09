@@ -28,6 +28,7 @@
             "pages": [
               "introduction",
               "quickstart",
+              "deploy-on-railway",
               "self-hosting",
               "cli"
             ]
