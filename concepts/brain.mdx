@@ -4,9 +4,9 @@ sidebarTitle: 'Ragen Brain'
 description: 'Brain extracts knowledge pages from your documents, cites every statement back to its source, and puts a page in front of chat only after a person approves and publishes it.'
 ---
 
-Ragen Brain turns the documents in your knowledge base into **knowledge pages** — short, reviewed statements about a policy, a process, a role, an entity or a product, each one citing the exact passage it came from. Alongside the pages it keeps **findings**: what contradicts what, which source has moved on, which page nobody vouches for any more.
+Ragen Brain turns the documents in your knowledge base into **knowledge pages** — short, reviewed statements about a policy, a process, a role, an object or a product, each one citing the exact passage it came from. Alongside the pages it keeps **problems**: what contradicts what, which source has moved on, which page nobody vouches for any more.
 
-The part that matters most is what Brain does *not* do: nothing it writes reaches chat on its own. A page is a candidate until a person approves it, and it is retrievable only after a person publishes it. Publishing can be undone at any time.
+The part that matters most is what Brain does *not* do: nothing it writes reaches chat on its own. A page waits for review until a person approves it, and it is retrievable only after a person publishes it. Publishing can be undone at any time.
 
 <Note>
   Brain is behind the `brain` feature flag, which is **off by default**. By default only owners and admins of an organization where the flag is on can open it. See [Turning Brain on](#turning-brain-on).
@@ -16,7 +16,7 @@ The part that matters most is what Brain does *not* do: nothing it writes reache
 
 <Steps>
   <Step title="Extract">
-    You choose documents and start an extraction. A background job reads each one and writes **candidate** pages. Every statement on a page carries a verbatim quote, and a statement whose quote cannot be found in the document is dropped.
+    You choose documents and start an extraction. A background job reads each one and writes pages **to review**. Every statement on a page carries a verbatim quote, and a statement whose quote cannot be found in the document is dropped.
   </Step>
   <Step title="Review">
     A person sets an owner, checks who the page is open to, and approves, rejects or merges it. Every decision is written to an append-only history.
@@ -26,10 +26,25 @@ The part that matters most is what Brain does *not* do: nothing it writes reache
   </Step>
 </Steps>
 
-Brain lives in the panel under **Brain**, with four tabs: **Knowledge pages**, **Findings**, **Graph** and **Documents**.
+Brain lives in the panel under **Brain**, with five tabs: **Overview**, **Knowledge pages**, **Problems**, **Graph** and **Sources**. The header holds a language filter, the [operator's assistant](#the-operators-assistant) and one main button, **Add documents**, which uploads files into Brain alone (see [Uploading into Brain alone](#uploading-into-brain-alone)).
 
-<Frame caption="The Knowledge pages tab. The bar above the table counts what is ready to export and offers Publish approved and Download bundle (.zip).">
-  <img src="/images/brain/brain-pages.webp" alt="The Ragen Brain knowledge pages list, showing titles, types, statuses, owners, document counts and open findings" />
+## Overview
+
+The **Overview** tab shows where your knowledge stands on its way from a document to a chat answer, and what to do next.
+
+<Frame caption="The Overview tab: the next step, the four stages from documents to published pages, what needs attention, and where the most unreviewed knowledge is.">
+  <img src="/images/brain/brain-overview.webp" alt="The Brain Overview tab with a What now? banner, four stage tiles (Documents, To review, Approved, Published), a Needs attention list and a ranking of documents by unreviewed pages" />
+</Frame>
+
+- **What now?** names one next step, chosen in this order: assign owners to pages that have none, review pages that have an owner, publish approved pages. The banner is hidden when none applies.
+- **The knowledge journey** counts **Documents**, pages **To review**, **Approved** pages and **Published** pages. Each tile links to the matching list.
+- **Needs attention** lists pages without an owner, documents without extracted knowledge and open problems.
+- **Where the most unreviewed knowledge is** ranks documents by how many of their pages are still to review, on one scale for all of them.
+
+The count of approved pages waiting to be published is the same number the **Publish approved** button shows: the pages that button would publish or republish, across the organization.
+
+<Frame caption="The Knowledge pages tab. The bar above the table counts approved pages and offers Publish approved and Download bundle (.zip).">
+  <img src="/images/brain/brain-pages.webp" alt="The Ragen Brain knowledge pages list, showing titles, types, statuses, owners, document counts and open problems" />
 </Frame>
 
 ## Turning Brain on
@@ -67,13 +82,13 @@ Turn **Ragen Brain: members may browse** on to let every member of the organizat
 
 ## Extracting knowledge pages
 
-Click **Extract from documents**. The dialog lists the organization's parsed documents and pre-selects the ones no page cites yet. Each row shows how many pages already cite it, or **Not extracted**.
+On the **Sources** tab, click **Extract from documents**. The dialog lists the organization's parsed documents and pre-selects the ones no page cites yet. Each row shows how many pages already cite it, or **Not extracted**.
 
 <Frame caption="Choosing documents for an extraction run. The count on the button is the number of documents selected.">
   <img src="/images/brain/brain-extract.webp" alt="The Extract knowledge from documents dialog with a list of documents, some selected, and a Start extraction button" />
 </Frame>
 
-A run takes at most 200 documents and happens in the background; candidates appear as each document finishes. One run executes at a time across the installation by default, so a second run queues behind the first.
+A run takes at most 200 documents and happens in the background; pages to review appear as each document finishes. One run executes at a time across the installation by default, so a second run queues behind the first.
 
 What extraction produces:
 
@@ -82,7 +97,7 @@ What extraction produces:
 | **Policy** | A rule — leave entitlement, data retention, discounts |
 | **Process** | Something people do in steps — submitting a leave request, onboarding |
 | **Role** | Who does it — an onboarding buddy, a line manager |
-| **Entity** | A thing the organization deals with — a department, an agreement |
+| **Object** | A thing the organization deals with — a department, an agreement |
 | **Product** | What the organization offers — a service line, a price list |
 
 Three rules decide what survives:
@@ -93,9 +108,9 @@ Three rules decide what survives:
 
 A new page is open to exactly the people who could read its source document. When a page comes from several documents — after a merge — it is open to the intersection of their readers, never the union.
 
-Extracting the same document again replaces only candidates nobody has touched. A page that already has a decision on it — an owner set, an approval, a rejection — stays, and a rejected page is not offered again.
+Extracting the same document again replaces only pages to review that nobody has touched. A page that already has a decision on it — an owner set, an approval, a rejection — stays, and a rejected page is not offered again.
 
-A document that cannot be extracted raises an **Extraction failed** finding with a **Retry** button. So does a document the run's limits stopped before it was reached.
+A document that cannot be extracted raises an **Extraction failed** problem with a **Retry extraction** button. So does a document the run's limits stopped before it was reached.
 
 ## Knowledge pages
 
@@ -103,17 +118,17 @@ Each page has a type, a status and, once someone takes responsibility for it, an
 
 | Status | Meaning |
 |---|---|
-| **Candidate** | Written by extraction, waiting for review. Not exported, not publishable. |
-| **Approved** | A person confirmed it says what its sources say. Exportable, and publishable once it has an owner and an access list. |
+| **To review** | Written by extraction, waiting for review. Not exported, not publishable. |
+| **Approved** | A person confirmed it says what its sources say. Exportable, and publishable once it has an owner and an access list. A published page also carries a **Published** badge. |
 | **Rejected** | A person said no. It stays in Brain as history and is not offered again. |
-| **Stale** | An approved page whose check has lapsed. Exported with its status, so the problem is not hidden. Brain does not set this status itself yet — it reports staleness as a finding. |
+| **Stale** | An approved page whose check has lapsed. Exported with its status, so the problem is not hidden. Brain does not set this status itself yet — it reports staleness as a problem. |
 
 The list filters by status and shows **All except rejected** by default.
 
-Open a page to see everything a reviewer needs in one place: its statements with numbered citations, the **Sources** with the quoted passage and the document version it was read from, its **Open findings**, and on the side its **Owner**, **Knowledge base** state, who it is **Open to**, **Verification**, **Relations** and **History**.
+Open a page to see everything a reviewer needs in one place: its statements with numbered citations, the **Sources** with the quoted passage and the document version it was read from, its **Open problems**, and on the side its **Status**, the **Publish** action, its **Owner**, who it is **Open to**, **Relations** and **History**. A breadcrumb above the page leads back to the list.
 
-<Frame caption="A published policy page. Each [n] points to a quoted source; the open finding below is a contradiction with an older document.">
-  <img src="/images/brain/brain-page.webp" alt="A knowledge page titled Annual leave, with statements, two cited sources, an open contradiction finding, and owner, access, relations and history on the right" />
+<Frame caption="An approved page. Each [n] points to a quoted source, and the relations on the right say which other pages it is linked to.">
+  <img src="/images/brain/brain-page.webp" alt="A knowledge page titled Acme Industries, with three statements, three cited sources with their quoted passages, and status, owner, access, relations and history on the right" />
 </Frame>
 
 A source is marked when its document has a newer version or has been deleted.
@@ -123,22 +138,32 @@ A source is marked when its document has a newer version or has been deleted.
 Review is done on the page itself, and only owners and admins can do it.
 
 - **Owner** — the person who vouches for the page, not whoever uploaded the source. Choose a member of the organization and save.
-- **Approve page** — available on a candidate that has an owner. The owner must still be a member of the organization.
-- **Reject page** — on a candidate. It cannot be undone from the panel.
-- **Merge** — fold a candidate into another page about the same subject. Its statements and sources move to the target, which keeps its title, takes the narrower access of the two, and goes back to **Candidate** for review. The merged page is marked rejected and points to the target. The picker suggests pages that look like the same subject first. Neither page may be published.
+- **Approve page** — available on a page to review that has an owner. The owner must still be a member of the organization.
+- **Reject page** — on a page to review. It cannot be undone from the panel.
+- **Merge** — fold a page to review into another page about the same subject. Its statements and sources move to the target, which keeps its title, takes the narrower access of the two, and goes back to **To review**. The merged page is marked rejected and points to the target. The picker suggests pages that look like the same subject first. Neither page may be published.
 - **Change access** — choose the whole organization, teams or people. A change that lets anyone read the page who could not before is a **widening**: the panel asks you to confirm it, and it is recorded under your name as **Access widened**. A page open to nobody shows **Nobody yet — needs a decision** and cannot be published.
+
+### Review mode
+
+To go through many pages in a row, open **Review mode** from the Overview's **What now?** banner. It walks a queue of pages to review, grouped **By document** or **By type**, and shows one page at a time in three steps: **Owner**, **Claims** and **Decision**.
+
+- **Owner** — required before you can approve. When several pages come from one document, you can set the owner for all of them at once.
+- **Claims** — each claim is shown next to its verbatim quote, so you can check that they agree. The **Correct** and **Needs a fix** marks are only a guide for you and are not saved. Brain also flags a claim that leaves out a fact its quote states, and one with no citation marker.
+- **Decision** — **Approve and publish**, **Approve only** or **Reject**. A page without readers can still be approved, but needs access set on its page before it is published.
+
+The keyboard shortcuts are **A** approve and publish, **R** reject, **J** next and **K** previous.
 
 Every one of these — and every publication and withdrawal — is appended to the page's **History**, with who did it and when. The history cannot be edited.
 
-## Findings
+## Problems
 
-The **Findings** tab is the list of things a curator should look at, filtered by **Open**, **Resolved** or **Dismissed**.
+The **Problems** tab is the list of things a curator should look at, filtered by **Open**, **Resolved** or **Dismissed**, and by problem type.
 
-<Frame caption="Open findings: two contradictions between documents, a failed extraction with a retry, a page whose owner left, a stale source and an unlinked page.">
-  <img src="/images/brain/brain-findings.webp" alt="The Findings tab listing contradiction, extraction failed, no owner, stale and unlinked findings with severities" />
+<Frame caption="Open problems. These two pages are not linked to any other page; Brain suggests relations from the documents the pages share, and you pick which to link.">
+  <img src="/images/brain/brain-problems.webp" alt="The Problems tab with Unlinked problems, a checklist of suggested relations, and the buttons Check relations, This is fine close and Ask the assistant about this" />
 </Frame>
 
-| Finding | Raised when | Severity |
+| Problem | Raised when | Severity |
 |---|---|---|
 | **Contradiction** | A model judges that two pages on the same subject, built from different documents, disagree. The detail quotes both passages. | **High** if either page is published, otherwise **Medium** |
 | **Stale** | A source document was deleted, or its current version no longer contains the quoted words, or a page's verification interval has elapsed. | **High** on a published page for a source problem, otherwise **Medium** |
@@ -149,42 +174,43 @@ The **Findings** tab is the list of things a curator should look at, filtered by
 
 A new version of a document is not enough to make a page stale. Re-uploading the same PDF creates a new version with the same text, so Brain checks whether the quoted words are still there.
 
-**Stale**, **No owner**, **Unlinked** and **Gap** are computed from the pages themselves. Brain recomputes them at the end of every extraction run and after every review or publication decision, and resolves a finding on its own once its cause is gone — set an owner and the **No owner** finding closes. Candidates are left out on purpose: every candidate is unowned and unlinked until someone reviews it.
+**Stale**, **No owner**, **Unlinked** and **Gap** are computed from the pages themselves. Brain recomputes them at the end of every extraction run and after every review or publication decision, and resolves a problem on its own once its cause is gone — set an owner and the **No owner** problem closes. Pages to review are left out on purpose: every one is unowned and unlinked until someone reviews it.
 
 **Contradiction** is judged only when an extraction run writes one of the two pages. **Extraction failed** closes when the document extracts successfully, for example after **Retry**.
 
 ## Graph
 
-The **Graph** tab draws the pages and the relations between them. Click a page to see its relations and open findings, then **Open page** or **Show neighbourhood** to focus on it.
+The **Graph** tab draws the pages and the relations between them. The graph opens on a **Topics** map: each tile is a group of related pages, sized by page count, green when it holds an approved page and amber when it holds only pages to review. Pick a tile to see how its pages connect, search for a page, or switch the view to **Page neighbourhood** or **Full graph**. Click a page to see its relations and open problems, then **Open page** or **Show neighbourhood** to focus on it.
 
-<Frame caption="The neighbourhood of one page, two steps out. The amber line is an unconfirmed relation; inferred relations are hidden until you show them.">
-  <img src="/images/brain/brain-graph-focus.webp" alt="The Brain knowledge graph focused on Annual leave, showing connected pages, a legend and a side panel with the page's relations" />
+<Frame caption="The Topics view with the Accessories topic selected: its pages and relations are drawn on the right and listed below. Inferred relations are hidden until you show them.">
+  <img src="/images/brain/brain-graph-focus.webp" alt="The Brain Topics view: a map of topic tiles on the left, and on the right the neighbourhood of the Accessories page with four linked products and a manufacturer" />
 </Frame>
 
 - **Reach** — how far out a neighbourhood goes: **1 step** or **2 steps**.
 - **Pages** — how many pages to draw at most: 150, 300, 600 or 1000. The line under the controls says how many of the total are shown.
 - **Inferred relations** — **Hidden** by default. Relations the model inferred without a quote are the weakest evidence, so they are never shown unless you ask.
 
-Line weight follows the evidence: thick for a quoted relation, thinner and amber for an unconfirmed one, thinnest and faint for an inferred one. A page with an open finding is drawn larger and always labelled. **Groups** lists clusters of closely related pages.
+Line weight follows the evidence: thick for a quoted relation, thinner and amber for an unconfirmed one, thinnest and faint for an inferred one. A page with an open problem is drawn larger and always labelled. **Groups** lists clusters of closely related pages.
 
 ## Filtering by language
 
-When the documents Brain reads are in more than one language, a **Language** selector appears in the header beside the assistant and extraction buttons. Pick a language and every tab narrows to the documents in it, and the pages and findings that cite them. Choose **Not detected** to see documents whose language could not be determined, or **All languages** to clear it. Each option shows how many documents it covers.
+When the documents Brain reads are in more than one language, a **Language** selector appears in the header beside the assistant. Pick a language and every tab narrows to the documents in it, and the pages and problems that cite them. Choose **Not detected** to see documents whose language could not be determined, or **All languages** to clear it. Each option shows how many documents it covers.
 
 The choice stays when you switch tabs. With one language, or none detected, there is nothing to choose and the selector is not shown.
 
-## Documents
+## Sources
 
-The **Documents** tab shows what Brain extracted from each file and how much of it has been reviewed.
+The **Sources** tab shows what Brain extracted from each file and how much of it has been reviewed. **Extract from documents** sits above the list, and **Manage files in the knowledge base** leads to the file list itself, which is a separate list from this one.
 
-- **Three counts** across the top: all documents, those with **nothing extracted**, and those **excluded from search**. Open the nothing-extracted count to list just those documents.
-- **Knowledge in Brain** — a bar per document, approved pages in green and candidates beside them. All bars share one scale, so a long document looks long next to a short one.
-- **State** — whether extraction is *not yet run*, *processing*, *extracted*, *nothing extracted*, or *failed*, with whether the document is still searched by chat underneath.
+- **Warnings** appear above the table only when they apply: documents with **nothing extracted**, and documents **taken out of search**. Open the first to list just those documents.
+- **Knowledge in Brain** — a bar per document, approved pages in green and pages to review beside them. All bars share one scale, so a long document looks long next to a short one.
+- **State** — whether extraction is *not yet run*, *processing*, *extracted*, *nothing extracted*, or *failed*, as one badge. A document that is not searched by chat says so beside it.
+- The **⋯** menu at the end of a row holds the retrieval actions below.
 - A document whose language could not be detected is marked **Check language**. A document that has a counterpart in another language shows it, with the counterpart's own counts (each page is counted once).
 - When extraction failed, a **Retry extraction** button appears for people who may curate.
 
-<Frame caption="Documents and their retrieval state. The first row was uploaded into Brain alone and is not searchable.">
-  <img src="/images/brain/brain-documents.webp" alt="The Brain Documents tab listing documents with approved page and candidate counts, retrieval state, and actions" />
+<Frame caption="The Sources tab. Each bar counts a document's approved pages and pages to review, on one scale for all documents.">
+  <img src="/images/brain/brain-documents.webp" alt="The Brain Sources tab listing documents with their language, a bar of approved and to-review pages, and an Extracted state" />
 </Frame>
 
 ### Taking a document out of retrieval
@@ -195,29 +221,29 @@ Brain never does this on its own. It is always a person's decision, per document
 
 ### Uploading into Brain alone
 
-**Upload into Brain** stores and parses files without indexing them. They show as **In Brain — not searchable**: you can extract pages from them, and while a document stays staged nothing in it can be retrieved or cited — only a published page built from it can reach an answer. This is the way to curate a sensitive corpus before any of it can reach an answer. The protection lasts only as long as the document stays out of retrieval: sending it to the knowledge base (below) makes the whole document searchable.
+**Add documents** in the header stores and parses files without indexing them. They show as **In Brain — not searchable**: you can extract pages from them, and while a document stays staged nothing in it can be retrieved or cited — only a published page built from it can reach an answer. This is the way to curate a sensitive corpus before any of it can reach an answer. The protection lasts only as long as the document stays out of retrieval: sending it to the knowledge base (below) makes the whole document searchable.
 
 To index a staged document as an ordinary one, use **Send to knowledge base**. The same action is offered on the Knowledge page and does not depend on the `brain` flag, so staged files are never stranded if Brain is switched off.
 
 ## Publishing to the knowledge base
 
-On an approved page, **Publish to knowledge base** writes it into the index as its own document, with the page's access list on every chunk. The panel explains what is missing if the button is not available: the page must be approved, have an owner, and be open to someone.
+On an approved page, **Publish** writes it into the index as its own document, with the page's access list on every chunk. The panel explains what is missing if the button is not available: the page must be approved, have an owner, and be open to someone.
 
-The page's **Knowledge base** state tells you where it is:
+The page's publication state tells you where it is:
 
 | State | Meaning |
 |---|---|
-| Not in the knowledge base | Never published |
-| Being written to the knowledge base… | Publication is in progress |
-| In the knowledge base — answers can cite it | Serving |
-| Withdrawn from the knowledge base | Withdrawn; still approved, and can be published again |
-| Writing to the knowledge base failed | Publish again to finish |
+| Not published | Never published |
+| Publishing… | Publication is in progress |
+| Published — chat answers can cite it | Serving |
+| Withdrawn from publication | Withdrawn; still approved, and can be published again |
+| Publishing failed — publish it again | Publish again to finish |
 
 If a page's text changes after it was published, the panel says so and offers **Republish**.
 
 **Withdraw** takes the page out of the index. Answers stop citing it immediately, the page stays approved, and past answers keep their citations.
 
-**Publish approved** on the Knowledge pages tab publishes every approved page in one go. Pages already serving their current text are left alone, changed pages are republished, and pages without an owner or open to nobody are skipped and counted. Withdrawn pages stay withdrawn.
+**Publish approved (n)** on the Knowledge pages tab publishes every approved page in one go, after you confirm. The number is how many pages it would publish or republish. Pages already serving their current text are left alone, changed pages are republished, and pages without an owner or open to nobody are skipped and counted. Withdrawn pages stay withdrawn.
 
 Changing who a published page is open to reaches the index, not just the page: the page's chunks are removed and written again with the new access. In between, the page answers nobody — stricter than either the old or the new setting.
 
@@ -246,18 +272,18 @@ ragen-brain-2026-09-24.zip
     └── ...
 ```
 
-Only **Approved** and **Stale** pages are exported, and only those with an owner, an access list and at least one source. The bar above the list counts what is ready and why the rest is left out — **Not approved**, **No owner**, **Open to nobody**, **No sources**.
+Only **Approved** and **Stale** pages are exported, and only those with an owner, an access list and at least one source. The bar above the list counts the approved pages (**Approved: n**) and why the rest is left out — **Not approved**, **No owner**, **Open to nobody**, **No sources**.
 
 ## The operator's assistant
 
-The operator's assistant is a chat panel beside every Brain screen. Open it with **Assistant**. It reads what you are looking at — a page, a finding, the graph selection, a document — and answers with the quotes its answer rests on, linking every page it names. It suggests questions that fit the screen, such as *Is this page right? Check each claim against its quote* on a candidate page, or *Explain the open contradictions* on the findings list.
+The operator's assistant is a chat panel beside every Brain screen. Open it with **Assistant**. It reads what you are looking at — a page, a problem, the graph selection, a document — and answers with the quotes its answer rests on, linking every page it names. It suggests questions that fit the screen, such as *Is this page right? Check each claim against its quote* on a page to review, or *Explain the open contradictions* on the problems list.
 
 It is behind the **Ragen Brain: the operator's assistant** feature, which is off by default and has no effect unless **Ragen Brain** is on too.
 
 **It never changes anything by itself.** When it suggests a change, it shows a **Suggested change** card. Nothing happens until a person applies the card, and applying it runs the same action as the button in Brain, under that person's name. The history therefore still names a person, and a change that widens access asks for confirmation just as it does in the panel. The assistant can suggest approving, rejecting, publishing or withdrawing pages (several at once), merging two pages, setting an owner, changing access and retrying an extraction.
 
 - **Who sees suggestions.** Only someone who may curate Brain gets suggestion cards. A member who is [browsing](#letting-members-browse) gets answers only.
-- **What it reads.** It reads Brain's data only — pages, quotes, findings, documents and decisions — through the same organization-scoped queries as the panel. It does not search the knowledge base or call connectors.
+- **What it reads.** It reads Brain's data only — pages, quotes, problems, documents and decisions — through the same organization-scoped queries as the panel. It does not search the knowledge base or call connectors.
 - **Which model it uses.** It runs on the organization's default model, which must support tool calling. If it does not, the panel says so and links to the model setting.
 - **Rules and limits.** A turn goes through the same monthly usage limits, PII masking and guardrail rules as chat.
 - **Conversations.** They are kept, encrypted like chat threads, and listed under **Earlier conversations**. They do not appear in the chat thread list or in the public API.
@@ -285,7 +311,7 @@ Brain's extraction runs on the worker. These variables are read there; all are o
 | `BRAIN_EXTRACT_MAX_TOKENS` | `2000000` | Tokens one run may spend, across all its documents |
 | `BRAIN_EXTRACT_CONCURRENCY` | `1` | Extraction runs executing at once across the installation |
 
-A run that hits either ceiling stops, and the documents it did not reach get an **Extraction failed** finding you can retry. Each run compares at most 100 page pairs for contradictions.
+A run that hits either ceiling stops, and the documents it did not reach get an **Extraction failed** problem you can retry. Each run compares at most 100 page pairs for contradictions.
 
 <Warning>
   Extraction makes several model calls per document. Raise `BRAIN_EXTRACT_CONCURRENCY` only with a provider quota you have measured — two parallel runs were enough to hit rate limits in testing.
@@ -294,7 +320,7 @@ A run that hits either ceiling stops, and the documents it did not reach get an 
 ## Current limits
 
 - **Contradictions are looked for between pages with the same title.** Two documents that name one subject differently — "Leave" and "Annual leave" — are not compared, and the check runs only when extraction writes one of the two pages, so merging them in review does not trigger it either. Review differently titled pages on the same subject yourself; merging them afterwards keeps one page, but does not check its sources against each other.
-- **Verification is read-only.** A page shows its verification interval and last verification when they are set, and the **Stale** finding fires when the interval lapses, but the panel cannot set an interval or record a verification yet.
-- **A page's status does not turn to Stale by itself.** Staleness is reported as a **Stale** finding on the approved page.
-- **Findings cannot be dismissed from the panel yet.** The computed ones close on their own once their cause is fixed.
-- **Only a candidate can be approved or rejected.** Retiring an approved page means withdrawing it from the knowledge base.
+- **Verification is read-only.** A page shows its verification interval and last verification when they are set, and the **Stale** problem fires when the interval lapses, but the panel cannot set an interval or record a verification yet.
+- **A page's status does not turn to Stale by itself.** Staleness is reported as a **Stale** problem on the approved page.
+- **Most problems cannot be dismissed from the panel.** An **Unlinked** problem has **This is fine, close**; the computed ones close on their own once their cause is fixed.
+- **Only a page to review can be approved or rejected.** Retiring an approved page means withdrawing it from the knowledge base.
