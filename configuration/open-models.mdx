@@ -221,6 +221,18 @@ The four variables above are not the whole list. A few features call a model by 
 
 On an isolated install, give each of these ids a route to a local model, so none of them falls through to a cloud provider whose key happens to be set. Ragen ships such a table, `infra/llm-gateway/routes.appliance.yaml`, along with an env template, `infra/appliance/appliance.env.example`. The template sets every model variable, `VECTOR_SIZE`, `DOCLING_STRICT=1`, a local encryption key, and leaves every outbound setting empty.
 
+The appliance table also names its models for the picker, which offers three of them:
+
+| Route | Model | In the picker |
+|---|---|---|
+| `local-chat` | Bielik 11B | Yes |
+| `local-small` | Qwen 2.5 7B | Yes |
+| `local-vision` | Gemma 3 12B (images and documents) | Yes |
+| `local-embed` | BGE-M3 (embeddings) | No |
+| the cloud ids above | the local model each one routes to | No |
+
+The cloud-id aliases carry a display name but no `chat` capability. They answer the calls the application makes by those ids, and they stay out of the picker, so it does not list Bielik three times. When you swap a model, change its `model:` and `display:` together.
+
 ## Running Everything in Containers
 
 `docker-compose.appliance.yml` sits on top of the two standard compose files and adds an Ollama service:
