@@ -10,15 +10,15 @@ Ragen supports email/password and magic-link sign-in for the main application, a
 
 | Surface | Methods | Notes |
 |---|---|---|
-| Main app (`:3000`) | Email + password, magic link | No social sign-in — not unconfigured, not built |
+| Main app (`:3000`) | Email + password, magic link, company sign-in (OIDC) | Company sign-in only when `OIDC_*` is configured — see [Company sign-in](/configuration/company-sign-in) |
 | Admin panel (`:3200`) | Email + password, Google | Google requires `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` |
 
-The main app has no Google button and no social sign-in of any kind. Setting `GOOGLE_CLIENT_ID` in your environment does not add a sign-in button to `:3000`. SSO (SAML, Entra ID, SCIM directory sync) and MFA are not yet available on either surface.
+The main app has no Google button of its own. Setting `GOOGLE_CLIENT_ID` in your environment does not add a sign-in button to `:3000`. To let people sign in there with Google Workspace or Microsoft Entra ID, configure [company sign-in](/configuration/company-sign-in) over OpenID Connect. SAML, SCIM directory sync and MFA are not yet available on either surface.
 
 The admin panel shows a **Sign in with Google** button only when both credentials are present in the environment. A panel showing only the password form is configured that way — it isn't broken.
 
 <Note>
-  SSO (SAML, Entra ID, SCIM) and MFA are not yet built into Ragen. Today, authentication is email/password with per-organisation membership, plus opaque API keys for programmatic access. This page will be updated when those features ship.
+  Company sign-in over OpenID Connect, including Entra ID and Google Workspace, is covered on [Company sign-in](/configuration/company-sign-in). SAML, SCIM and MFA are not yet built.
 </Note>
 
 ## Admin-panel sign-in vs connector OAuth
