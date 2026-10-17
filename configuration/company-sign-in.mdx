@@ -1,0 +1,82 @@
+---
+title: 'Company Sign-In with Microsoft Entra ID, Google Workspace and OpenID Connect'
+sidebarTitle: 'Company Sign-In (OIDC)'
+description: 'Let people sign in to Ragen with their company account through any OpenID Connect provider, restricted to your own email domains, with new users joining your organization automatically.'
+---
+
+Ragen can let people sign in with their company account through one OpenID Connect provider. That covers Microsoft Entra ID, Google Workspace, Keycloak, and any other issuer that publishes a discovery document. Company sign-in is part of the open edition, and it stays off until you configure it. Email-and-password and magic-link sign-in keep working alongside it.
+
+## What you need from the identity provider
+
+Register Ragen as an application (Entra ID calls this an *app registration*, Google calls it an *OAuth client*) with:
+
+- **Redirect URI:** `<BETTER_AUTH_URL>/api/auth/callback/oidc`, for example `https://ragen.example.com/api/auth/callback/oidc`
+- **Scopes:** `openid`, `email`, `profile`
+- A **client ID** and a **client secret**
+
+## Configuration
+
+Set these on the web app:
+
+| Variable | Required | Description |
+|---|---|---|
+| `OIDC_ISSUER` | Yes | The issuer URL. Ragen reads `<issuer>/.well-known/openid-configuration`. |
+| `OIDC_CLIENT_ID` | Yes | From the application you registered. |
+| `OIDC_CLIENT_SECRET` | Yes | From the application you registered. |
+| `OIDC_ALLOWED_DOMAINS` | Yes | Comma-separated email domains, for example `example.com,example.pl`. Anyone outside them is refused. |
+| `OIDC_DISPLAY_NAME` | No | The name on the button: **Sign in with …**. Defaults to "company account". |
+| `OIDC_JOIN_ORGANIZATION` | No | Organization id or slug that new users join as members. See [Where new users land](#where-new-users-land). |
+| `OIDC_TRUST_EMAIL` | No | `true` to treat addresses in the allowed domains as verified when the issuer sends no `email_verified` claim. Microsoft Entra ID does not send one. |
+
+<Tabs>
+  <Tab title="Microsoft Entra ID">
+    ```bash
+    OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
+    OIDC_CLIENT_ID=<application (client) id>
+    OIDC_CLIENT_SECRET=<client secret value>
+    OIDC_ALLOWED_DOMAINS=example.com
+    OIDC_DISPLAY_NAME=Microsoft
+    OIDC_TRUST_EMAIL=true
+    OIDC_JOIN_ORGANIZATION=<your organization's id or slug>
+    ```
+
+    Use your tenant id, not `common` or `organizations`. A multi-tenant issuer vouches for accounts outside your company. Set `OIDC_TRUST_EMAIL=true` only when your tenant owns every domain in `OIDC_ALLOWED_DOMAINS`.
+  </Tab>
+  <Tab title="Google Workspace">
+    ```bash
+    OIDC_ISSUER=https://accounts.google.com
+    OIDC_CLIENT_ID=<client id>.apps.googleusercontent.com
+    OIDC_CLIENT_SECRET=<client secret>
+    OIDC_ALLOWED_DOMAINS=example.com
+    OIDC_DISPLAY_NAME=Google
+    OIDC_JOIN_ORGANIZATION=<your organization's id or slug>
+    ```
+
+    Google sends `email_verified`, so `OIDC_TRUST_EMAIL` is not needed. A verified address alone does not prove the account belongs to your Workspace, because anyone can create a personal Google account on a company address. For Google, Ragen therefore also requires the `hd` (hosted domain) claim to be one of `OIDC_ALLOWED_DOMAINS`. Google sets that claim only for accounts your Workspace manages, so a personal Google account is refused.
+  </Tab>
+</Tabs>
+
+Restart the web app after changing these. A partial configuration turns company sign-in off and shows on the setup checklist on the sign-in page. Password sign-in is never affected.
+
+## Who gets in
+
+- **Domain.** Ragen refuses any address outside `OIDC_ALLOWED_DOMAINS` before it creates or links an account, and sends the person back to sign-in with an error. The match is exact: `sub.example.com` is not `example.com`.
+- **Existing accounts.** If someone already has a password account with the same address, the company sign-in links to it only when the issuer reports the address as verified, and only for an allowed domain. An issuer that does not own your domain cannot take over a local account by claiming its address.
+- **Tokens.** Ragen verifies the ID token against the issuer's published keys, and uses PKCE.
+
+## Where new users land
+
+With `OIDC_JOIN_ORGANIZATION` set, a person signing in for the first time becomes a **member** of that organization, even when registration is closed. The identity provider and the allowed domains decide who that is, and an administrator promotes members as usual. This only applies when the address is verified, either by the issuer or by `OIDC_TRUST_EMAIL`. If the organization you name does not exist, the sign-up is refused.
+
+Without `OIDC_JOIN_ORGANIZATION`, company sign-in works like the other sign-up methods. It needs registration to be open, or an invitation, and each new user gets an organization of their own.
+
+## When something goes wrong
+
+| What you see | Why |
+|---|---|
+| No **Sign in with …** button | The configuration is incomplete. The setup checklist on the sign-in page names what is missing. |
+| The button is there, but sign-in fails at once | Ragen reads the issuer's discovery document when the web app starts. If the issuer was unreachable at that moment, Ragen skips the provider until the next restart. Check the web app's log, then restart it. A self-hosted issuer such as Keycloak must start before Ragen. |
+| "Company sign-in failed" after signing in at the provider | The address is outside the allowed domains. With Google, the account may also be a personal one, not part of your Workspace. |
+| The user signs in but lands in an empty organization of their own, or is refused at a closed install | `OIDC_JOIN_ORGANIZATION` admits only addresses the issuer reported as verified. With Entra ID, set `OIDC_TRUST_EMAIL=true`. Without `OIDC_JOIN_ORGANIZATION`, company sign-in follows the ordinary sign-up rules. |
+
+SAML, SCIM directory sync, and MFA are not built yet. See the [roadmap](/roadmap).

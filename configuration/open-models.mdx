@@ -145,6 +145,8 @@ LLM_OLLAMA_BASE_URL=http://ollama:11434/v1
 LLM_OLLAMA_API_KEY=unused
 ```
 
+The picker lists only models the built-in catalogue knows. To offer a local model there under its own name, give its route `display` and `capabilities: [chat]`. See [Registering a model](/configuration/models#registering-a-model).
+
 <Note>
   If Ollama runs on the Docker host rather than inside the compose network, use `http://host.docker.internal:11434` on Docker Desktop. On Linux, use the host's IP address on the Docker bridge network.
 </Note>
@@ -205,6 +207,41 @@ Common embedding model dimensions for reference:
 | `multilingual-e5-large` | 1024 |
 | `cohere-embed-multilingual-v3` | 1024 |
 
+## Models Ragen Calls by Name
+
+The four variables above are not the whole list. A few features call a model by a fixed id, not through an environment variable:
+
+| Id | Used by |
+|---|---|
+| `gemini-2.5-flash` | The guardrail policy judge and the **Optimize** suggestions generator |
+| `gemini-3-flash-preview` | The organization default when nothing else is set, and the public chat widget's default |
+| `gpt-oss-120b` | **Deep thinking** |
+| `gpt-5.4-nano`, `gpt-5.4-mini` | Subtitle (SRT) segmentation and the image-description steps of the PDF chain |
+| `claude-haiku-4-5` | The legacy PDF loader (not reached with `DOCLING_STRICT=1`) |
+
+On an isolated install, give each of these ids a route to a local model, so none of them falls through to a cloud provider whose key happens to be set. Ragen ships such a table, `infra/llm-gateway/routes.appliance.yaml`, along with an env template, `infra/appliance/appliance.env.example`. The template sets every model variable, `VECTOR_SIZE`, `DOCLING_STRICT=1`, a local encryption key, and leaves every outbound setting empty.
+
+## Running Everything in Containers
+
+`docker-compose.appliance.yml` sits on top of the two standard compose files and adds an Ollama service:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.fullapp.yml -f docker-compose.appliance.yml up -d
+```
+
+On a machine with an NVIDIA GPU and the NVIDIA Container Toolkit, add `-f docker-compose.appliance.gpu.yml`.
+
+A one-shot job pulls the models the appliance table names into the `ollama_models` volume and skips any that are already there. After the first pull, or with a volume restored from elsewhere, it needs no network. The web, api and worker containers wait for it, and they are pointed at the appliance table, the compose Ollama and `DOCLING_STRICT=1`. It needs Docker Compose 2.24 or newer.
+
+## Checking a Local Model Server
+
+The setup checklist on the sign-in page asks each `openai-compatible` server behind `DEFAULT_MODEL`, `REPHRASE_MODEL`, `SUMMARY_MODEL` and `EMBEDDINGS_MODEL` for its model list (`GET /models`). It reports two problems separately:
+
+- **A server that does not answer.** It names the `LLM_<CONNECTION>_BASE_URL` to check.
+- **A model the server does not have.** For Ollama it gives the `ollama pull` command to run.
+
+Both are recommendations, so sign-in still works while a model server is down. Cloud routes are not probed this way, because proving a cloud model works costs a billed call. Use `npm run gateway:preflight -- --probe` for those.
+
 ## What Still Reaches Outward
 
 Setting local model targets closes most outbound traffic, but several other paths remain. Work through this table to confirm your installation is fully isolated.
@@ -218,6 +255,7 @@ Setting local model targets closes most outbound traffic, but several other path
 | Speech (TTS/STT) | Off unless configured | `SPEECH_PROVIDER=elevenlabs` leaves the network. The OpenAI-compatible path takes `SPEECH_BASE_URL`, so it can point at a local speech server instead. |
 | Mail | Optional | Point `SMTP_HOST` at an internal mail server, or set `MAIL_PROVIDER=console` to write messages to the log instead. |
 | Langfuse tracing | Off unless `LANGFUSE_*` vars are set | Leave those variables unset, or point them at a self-hosted Langfuse instance. |
+| Newsletter sign-up | Off unless `KIT_API_KEY` is set | Registration sends the new user's address to Kit when the key is set. Leave it unset. |
 | Container images | Install-time only | Pull images once, then mirror them to an internal registry and cut outbound container traffic. |
 
 ## Things That Break Differently on Local Models

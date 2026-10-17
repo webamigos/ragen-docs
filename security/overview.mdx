@@ -59,9 +59,9 @@ The common failure mode in other RAG systems is a permission filter on the file 
 
 **Tenant isolation** is enforced separately. Each organisation gets its own Qdrant collection, and a guard logs any query that touches a tenant-scoped collection without its organisation filter applied.
 
-<Warning>
-  SSO (SAML, Entra ID, SCIM) and MFA are not yet built. Authentication today is username/password with per-organisation membership, plus opaque API keys for programmatic access stored non-reversibly in the database.
-</Warning>
+<Note>
+  Users sign in with email and password or a magic link, or with their company account through OpenID Connect (Microsoft Entra ID, Google Workspace and others), restricted to your email domains. See [Company sign-in](/configuration/company-sign-in). Programmatic access uses opaque API keys, stored non-reversibly in the database. SAML, SCIM and MFA are not built yet.
+</Note>
 
 ## Audit and security event logging
 

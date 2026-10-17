@@ -161,7 +161,20 @@ routes:
 
 The left-hand key is Ragen's name for the model — the one you put in an environment variable. `model` is the **upstream's** name for it, which is often different: Bedrock prefixes the region and the vendor (`eu.anthropic.claude-sonnet-5`), and an Azure deployment name is whatever you called it.
 
-A route carries no credentials and no display name. Credentials come from the environment; display names and capability flags live in the model catalogue.
+A route carries no credentials. Credentials come from the environment, and display names and capability flags live in the model catalogue. The exception is a model the catalogue cannot know, such as one served on your own hardware. Its route can describe itself:
+
+```yaml title="infra/llm-gateway/routes.yaml"
+version: 1
+routes:
+  local-chat:
+    provider: openai-compatible
+    connection: ollama
+    model: SpeakLeash/bielik-11b-v2.3-instruct:Q4_K_M
+    display: Bielik 11B        # the name in the picker and GET /v1/models
+    capabilities: [chat]       # chat and/or vision; only chat is offered
+```
+
+A route with `display` replaces a catalogue entry that has the same id. That lets you send an id the application calls by name, such as `gemini-2.5-flash`, to a local model without the picker showing the cloud model's name. A described route without `chat` is never offered as a chat model. Local models are grouped as **Local** in the picker, and `GET /v1/models` reports them with `owned_by: local`.
 
 <Tip>
   **The chat model picker shows what your credentials can actually serve.** It is the route table intersected with the credentials present in the app processes — so a route pointing at a provider you have no key for does not appear, rather than appearing and failing on the first click. A model you set in an environment variable but never routed will not appear either.

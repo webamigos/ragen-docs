@@ -154,9 +154,9 @@ This page answers the questions that come up most often when getting started wit
   </Accordion>
 
   <Accordion title="Is SSO supported?">
-    Not yet. Authentication today is email and password with per-organization membership, plus magic links for passwordless sign-in. Opaque API keys are available for programmatic access.
+    Yes, over OpenID Connect. Microsoft Entra ID, Google Workspace, Keycloak and any other issuer with a discovery document can sign people in. Sign-in is restricted to your own email domains, and new users can join your organization automatically. It is part of the open edition. See [Company sign-in](/configuration/company-sign-in).
 
-    Microsoft Entra ID sign-in over OAuth is on the [roadmap](/roadmap) and comes first. SAML and SCIM provisioning follow after that. MFA and passkeys are also planned for a later milestone.
+    SAML and SCIM provisioning are not built yet, and neither are MFA and passkeys. See the [roadmap](/roadmap).
   </Accordion>
 </AccordionGroup>
 

@@ -51,6 +51,7 @@
               "configuration/models",
               "configuration/model-gateway",
               "configuration/storage",
+              "configuration/company-sign-in",
               "configuration/token-vault",
               "configuration/background-jobs",
               "configuration/open-models",
