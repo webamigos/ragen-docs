@@ -164,6 +164,7 @@ The left-hand key is Ragen's name for the model — the one you put in an enviro
 A route carries no credentials. Credentials come from the environment, and display names and capability flags live in the model catalogue. The exception is a model the catalogue cannot know, such as one served on your own hardware. Its route can describe itself:
 
 ```yaml title="infra/llm-gateway/routes.yaml"
+version: 1
 routes:
   local-chat:
     provider: openai-compatible
