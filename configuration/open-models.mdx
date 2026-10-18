@@ -277,13 +277,13 @@ Setting local model targets closes most outbound traffic, but several other path
 | Langfuse tracing | Off unless `LANGFUSE_*` vars are set | Leave those variables unset, or point them at a self-hosted Langfuse instance. |
 | Newsletter sign-up | Off unless `KIT_API_KEY` is set | Registration sends the new user's address to Kit when the key is set. Leave it unset. |
 | Container images | Install-time only | Pull images once, then mirror them to an internal registry and cut outbound container traffic. |
-| Qdrant telemetry | On in the standard stack | `QDRANT__TELEMETRY_DISABLED=true` on the qdrant container. Reaches `telemetry.qdrant.io`. |
-| Prisma version check | On in the standard stack | `CHECKPOINT_DISABLE=1` on web, api, worker and the migrate job. Reaches `checkpoint.prisma.io`. |
-| Docling's web UI | On in the standard stack | `DOCLING_SERVE_ENABLE_UI=false`. The UI is built on Gradio, which sends analytics (`api.gradio.app`) and fetches assets (`raw.githubusercontent.com`). |
-| Docling's model hub and runtime | On in the standard stack | `HF_HUB_OFFLINE=1` (the models are in the image; `huggingface.co`) and `ORT_DISABLE_TELEMETRY=1` (onnxruntime; `mobile.events.data.microsoft.com`). |
-| Ollama cloud models | On unless switched off | `OLLAMA_NO_CLOUD=1`. Without it Ollama fetches cloud model tags and recommendations from `ollama.com` at start. |
+| Qdrant telemetry | Off | `QDRANT__TELEMETRY_DISABLED=true`, set on the qdrant container in `docker-compose.yml`, `docker-compose.app.yml` and the Helm chart. It stops `telemetry.qdrant.io`. |
+| Prisma version check | Off | `CHECKPOINT_DISABLE=1`, set in the web, API, worker and admin images, in `docker-compose.fullapp.yml` and in the Helm chart (the migrate job included). It stops `checkpoint.prisma.io`. |
+| Docling's web UI | Off | `DOCLING_SERVE_ENABLE_UI` defaults to `false`; setting it to `true` brings the UI back for a local look at a conversion. The UI is built on Gradio, which fetches assets from `raw.githubusercontent.com`. `GRADIO_ANALYTICS_ENABLED=False` stays set either way, so its analytics (`api.gradio.app`) stay off even with the UI on. |
+| Docling's model hub and runtime | Off | `HF_HUB_OFFLINE=1` (the models are in the image; `huggingface.co`) and `ORT_DISABLE_TELEMETRY=1` (onnxruntime; `mobile.events.data.microsoft.com`), set in `docker-compose.yml`, the Helm chart and the Docling image. |
+| Ollama cloud models | Off in the appliance | `OLLAMA_NO_CLOUD=1`, set in `docker-compose.appliance.yml`, the only stack that runs Ollama. Without it Ollama fetches cloud model tags and recommendations from `ollama.com` at start. If you run Ollama yourself, set it there. |
 
-`docker-compose.appliance.yml` sets every switch in the last five rows. Each row was found by the egress check below, on a stack where no container had any other way out.
+The egress check below found each of the last five rows, on a stack where no container had any other way out. They used to be switched off only in `docker-compose.appliance.yml`. The standard stack now switches them off too, so the appliance inherits them. Turning Docling's UI on in a standard install is your call. The appliance pins it off.
 
 ## Things That Break Differently on Local Models
 
