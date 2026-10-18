@@ -49,7 +49,7 @@ These are the things actively in progress alongside the infrastructure flexibili
     An assistant you talk to in a channel, carrying the same retrieval-time access filter as the main application. This is distinct from the Slack connector that reads Slack as a source.
   </Card>
   <Card title="Verified Air-Gapped Config" icon="shield-check">
-    A local model, local embeddings, no outbound path, and a script that demonstrates it end to end. The pieces exist today — what's missing is a single verified configuration.
+    A local model, local embeddings, no outbound path, and a script that demonstrates it end to end. The script exists: `npm run appliance:egress-check` runs the local-model stack on a network with no way out and names any container that tries to leave. It covers ingest and chat today; Brain and the guardrails come next.
   </Card>
   <Card title="SAML, SCIM and MFA" icon="microsoft">
     Company sign-in over OpenID Connect, including Entra ID and Google Workspace, has shipped. See [Company sign-in](/configuration/company-sign-in). SAML, SCIM directory sync and MFA come next.

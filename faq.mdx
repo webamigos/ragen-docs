@@ -118,7 +118,7 @@ This page answers the questions that come up most often when getting started wit
   <Accordion title="Does Ragen send my documents to the vendor?">
     No. Ragen is entirely self-hosted — there is no hosted offering, and no component reports back to the vendor. Your documents, your Postgres database, your Qdrant index, and your conversation history all live on infrastructure you control.
 
-    The application contains no analytics, tag manager, or usage telemetry. An architecture test fails the build if any of those are added.
+    The application contains no analytics, tag manager, or usage telemetry. An architecture test fails the build if any of those are added. Some of the services it runs alongside, such as Qdrant and Docling, have telemetry of their own. The local-model compose file switches it off; see [What still reaches outward](/configuration/open-models#what-still-reaches-outward).
   </Accordion>
 
   <Accordion title="What data leaves my network?">

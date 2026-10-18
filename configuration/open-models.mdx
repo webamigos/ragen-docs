@@ -245,6 +245,10 @@ On a machine with an NVIDIA GPU and the NVIDIA Container Toolkit, add `-f docker
 
 A one-shot job pulls the models the appliance table names into the `ollama_models` volume and skips any that are already there. After the first pull, or with a volume restored from elsewhere, it needs no network. The web, api and worker containers wait for it, and they are pointed at the appliance table, the compose Ollama and `DOCLING_STRICT=1`. It needs Docker Compose 2.24 or newer.
 
+Fill the environment from `infra/appliance/appliance.env.example`, including every secret it lists. The API and the worker refuse to start without them.
+
+The same file also switches off the telemetry and update checks of the services next to Ragen. Those are Qdrant, Prisma, Ollama and Docling. See [What still reaches outward](#what-still-reaches-outward).
+
 ## Checking a Local Model Server
 
 The setup checklist on the sign-in page asks each `openai-compatible` server behind `DEFAULT_MODEL`, `REPHRASE_MODEL`, `SUMMARY_MODEL` and `EMBEDDINGS_MODEL` for its model list (`GET /models`). It reports two problems separately:
@@ -252,7 +256,11 @@ The setup checklist on the sign-in page asks each `openai-compatible` server beh
 - **A server that does not answer.** It names the `LLM_<CONNECTION>_BASE_URL` to check.
 - **A model the server does not have.** For Ollama it gives the `ollama pull` command to run.
 
-Both are recommendations, so sign-in still works while a model server is down. Cloud routes are not probed this way, because proving a cloud model works costs a billed call. Use `npm run gateway:preflight -- --probe` for those.
+The model picker and `GET /v1/models` also leave out a model whose server answered without it, so nobody picks a model whose first answer is certain to fail. A server that does not answer hides nothing; the checklist reports it instead.
+
+Usage reports price a model whose route describes itself (`display`) at zero, because its cost is your hardware, not tokens.
+
+Both checklist findings are recommendations, so sign-in still works while a model server is down. Cloud routes are not probed this way, because proving a cloud model works costs a billed call. Use `npm run gateway:preflight -- --probe` for those.
 
 ## What Still Reaches Outward
 
@@ -269,6 +277,13 @@ Setting local model targets closes most outbound traffic, but several other path
 | Langfuse tracing | Off unless `LANGFUSE_*` vars are set | Leave those variables unset, or point them at a self-hosted Langfuse instance. |
 | Newsletter sign-up | Off unless `KIT_API_KEY` is set | Registration sends the new user's address to Kit when the key is set. Leave it unset. |
 | Container images | Install-time only | Pull images once, then mirror them to an internal registry and cut outbound container traffic. |
+| Qdrant telemetry | On in the standard stack | `QDRANT__TELEMETRY_DISABLED=true` on the qdrant container. Reaches `telemetry.qdrant.io`. |
+| Prisma version check | On in the standard stack | `CHECKPOINT_DISABLE=1` on web, api, worker and the migrate job. Reaches `checkpoint.prisma.io`. |
+| Docling's web UI | On in the standard stack | `DOCLING_SERVE_ENABLE_UI=false`. The UI is built on Gradio, which sends analytics (`api.gradio.app`) and fetches assets (`raw.githubusercontent.com`). |
+| Docling's model hub and runtime | On in the standard stack | `HF_HUB_OFFLINE=1` (the models are in the image; `huggingface.co`) and `ORT_DISABLE_TELEMETRY=1` (onnxruntime; `mobile.events.data.microsoft.com`). |
+| Ollama cloud models | On unless switched off | `OLLAMA_NO_CLOUD=1`. Without it Ollama fetches cloud model tags and recommendations from `ollama.com` at start. |
+
+`docker-compose.appliance.yml` sets every switch in the last five rows. Each row was found by the egress check below, on a stack where no container had any other way out.
 
 ## Things That Break Differently on Local Models
 
@@ -313,6 +328,14 @@ curl http://localhost:8000/v1/models
 # Qdrant is up and has the right collection size
 curl http://localhost:6333/collections
 ```
+
+To check that nothing leaves the machine, run the egress check from a checkout of the repository:
+
+```bash
+npm run appliance:egress-check
+```
+
+It starts the local-model stack on a Docker network with no route out, signs up an account, ingests a document and asks a question about it. It fails if any container tried to reach anything off that network, and names the container and the host. It runs in its own Compose project from a temporary directory, so your own environment file never reaches it. It uses small models by default; `--full-models` uses the real route table. It needs Docker Compose 2.24 or newer and about 13 GB of disk for the images.
 
 Then ask one question in the UI and ingest one document, and watch the model server's log. A fully local install shows:
 

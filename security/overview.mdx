@@ -14,6 +14,8 @@ Credentials are the exception to "all data lives in Ragen's database": connector
 
 There is no telemetry channel to the vendor. OpenTelemetry support exists, but it is inert until you point `OTEL_EXPORTER_OTLP_ENDPOINT` at a collector you run yourself.
 
+That covers Ragen's own code. Some of the services Ragen runs alongside have their own telemetry or update checks, and these are on by default. Qdrant reports to its vendor, Prisma checks for new versions, and Docling's UI sends analytics. The local-model compose file switches all of them off. [What still reaches outward](/configuration/open-models#what-still-reaches-outward) lists each one and its switch.
+
 ## What leaves your network
 
 Every model call goes where your configuration points it — directly to a provider, or through a proxy you also run ([Model gateway](/configuration/model-gateway)). What leaves your network depends on the destination, not on which path reaches it:
