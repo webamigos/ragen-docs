@@ -27,7 +27,7 @@ This page shows how to configure **every layer** so that nothing is processed by
 | Encryption keys | Scaleway Key Manager, or keys you hold | See [Encryption](/security/encryption). |
 | PII masking | Presidio, local (optional) | See [PII Masking](/security/pii-masking). |
 | Mail | Internal SMTP server or an EU mail provider | Or `MAIL_PROVIDER=console`, if administrators create every account. |
-| Telemetry | None by default | OpenTelemetry and Langfuse are inert unless you point them somewhere. |
+| Telemetry | None from Ragen's code | OpenTelemetry and Langfuse are inert unless you point them somewhere. Qdrant, Prisma and Docling have their own telemetry and update checks; see [What still reaches outward](/configuration/open-models#what-still-reaches-outward) for the switches. |
 
 <Tip>
   Where a model's weights come from does not decide where your data goes. An open model developed anywhere, served on EU infrastructure or on your own GPU, processes your data only there.
