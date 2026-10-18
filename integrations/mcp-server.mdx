@@ -4,7 +4,7 @@ sidebarTitle: 'MCP Server'
 description: 'Connect Claude Desktop, Cursor, or a custom agent to your Ragen assistants using the MCP Server — no REST API integration required.'
 ---
 
-The Ragen MCP Server lets any MCP-compatible client — Claude Desktop, Cursor, a custom agent, or any tool that speaks the Model Context Protocol — talk directly to your Ragen assistants. Instead of integrating the Chat REST API yourself, point your client at the MCP endpoint and start chatting with your knowledge base immediately. This is the reverse of MCP Connectors: here, an external client calls *into* Ragen rather than Ragen calling out to other services.
+The Ragen MCP Server lets any MCP-compatible client — Claude Desktop, Cursor, Hermes Agent, a custom agent, or any tool that speaks the Model Context Protocol — talk directly to your Ragen assistants. Instead of integrating the Chat REST API yourself, point your client at the MCP endpoint and start chatting with your knowledge base immediately. This is the reverse of MCP Connectors: here, an external client calls *into* Ragen rather than Ragen calling out to other services.
 
 ## Connecting your client
 
@@ -225,6 +225,42 @@ In Cursor's MCP settings, add a new server entry with:
   }
 }
 ```
+
+## Configuring Hermes Agent
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) is a personal agent that runs on your own machine or server. Connected to Ragen, it answers from your company knowledge base within the permissions of the person whose key it uses, while Hermes itself handles tasks, memory and messaging channels. Tested with Hermes Agent 0.16.0.
+
+Add a `ragen` entry under `mcp_servers` in the Hermes `config.yaml` (`~/.hermes/config.yaml`, or a profile's own file under `~/.hermes/profiles/<name>/`):
+
+```yaml title="config.yaml"
+mcp_servers:
+  ragen:
+    url: "https://your-ragen-instance.example.com/mcp"
+    headers:
+      Authorization: "Bearer ${RAGEN_API_KEY}"
+    timeout: 120
+```
+
+Hermes resolves `${RAGEN_API_KEY}` from its environment when it connects, so the key never has to be written into the file. Set it [without echoing it](#set-the-key-without-echoing-it), then check the connection:
+
+```bash
+hermes mcp test ragen
+```
+
+A working connection reports `Tools discovered: 3` and lists `ragen_chat`, `ragen_list_assistants` and `ragen_search_knowledge_base`. Hermes exposes them to the model as `mcp_ragen_ragen_chat` and so on, and marks every result as untrusted tool output.
+
+<Note>
+  **Create the key as the person who will use the agent.** A key carries the permissions of the person who created it, so a key created by an organization owner gives the agent the owner's view of every document. With a plain member's key, a document the member cannot open in the web app is not returned to the agent either, through `ragen_search_knowledge_base` or `ragen_chat`.
+</Note>
+
+If the agent should only answer from the knowledge base, give it a dedicated profile and switch off the toolsets it does not need, such as the terminal and file access:
+
+```bash
+hermes profile create ragen --no-skills
+hermes -p ragen tools disable terminal file code_execution browser computer_use
+```
+
+Hermes and Ragen can share one model server. Point both at the same Ollama or vLLM endpoint ([Open models](/configuration/open-models)). Hermes needs a model with a context window of at least 64,000 tokens.
 
 ## Custom agents
 
