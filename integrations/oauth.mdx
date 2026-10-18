@@ -66,7 +66,7 @@ Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pa
     GOOGLE_CLIENT_SECRET="your-client-secret"
     ```
 
-    Also confirm that `BETTER_AUTH_URL` matches the origin the panel is served on — this is used to construct the OAuth callback URI. If the panel is at `https://admin.example.com` but `BETTER_AUTH_URL` is `http://localhost:3200`, Google receives a localhost callback and fails with a redirect URI mismatch.
+    Also confirm that `APP_URL` (formerly `BETTER_AUTH_URL`) matches the origin the panel is served on — this is used to construct the OAuth callback URI. If the panel is at `https://admin.example.com` but `APP_URL` is `http://localhost:3200`, Google receives a localhost callback and fails with a redirect URI mismatch.
   </Step>
   <Step title="Set the allowed email domain">
     ```bash
@@ -96,7 +96,7 @@ Both flows read `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. If you put one pa
 <Accordion title="redirect_uri_mismatch">
   The callback URI Google received doesn't match any URI registered on the OAuth client. Compare the URI character by character. Common causes:
 
-  - `BETTER_AUTH_URL` doesn't match the origin the browser is using — the panel builds its callback URI from this value
+  - `APP_URL` doesn't match the origin the browser is using — the panel builds its callback URI from this value
   - The redirect URI in Google Cloud Console has a trailing slash but the one Ragen sends doesn't (or vice versa)
   - You registered `http://` but the panel is served over `https://`
   - The wrong subdomain — `localhost` instead of `admin.example.com`
