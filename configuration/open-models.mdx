@@ -245,9 +245,9 @@ On a machine with an NVIDIA GPU and the NVIDIA Container Toolkit, add `-f docker
 
 A one-shot job pulls the models the appliance table names into the `ollama_models` volume and skips any that are already there. After the first pull, or with a volume restored from elsewhere, it needs no network. The web, api and worker containers wait for it, and they are pointed at the appliance table, the compose Ollama and `DOCLING_STRICT=1`. It needs Docker Compose 2.24 or newer.
 
-Fill the environment from `infra/appliance/appliance.env.example`, including every secret it lists. The API and the worker refuse to start without them.
+Copy `infra/appliance/appliance.env.example` to `.env.local` at the root of the checkout, then fill in every secret it lists. The containers read that file, and the API and the worker refuse to start without the secrets.
 
-The same file also switches off the telemetry and update checks of the services next to Ragen. Those are Qdrant, Prisma, Ollama and Docling. See [What still reaches outward](#what-still-reaches-outward).
+`docker-compose.appliance.yml` switches off the telemetry and update checks of the services next to Ragen: Qdrant, Prisma, Ollama and Docling. The environment file does not, so run the stack with the compose file. See [What still reaches outward](#what-still-reaches-outward).
 
 ## Checking a Local Model Server
 
@@ -329,7 +329,9 @@ curl http://localhost:8000/v1/models
 curl http://localhost:6333/collections
 ```
 
-To check that nothing leaves the machine, run the egress check from a checkout of the repository:
+The egress check tests the reference local-model stack, not your installation. It brings up its own copy, with a generated environment, so a pass shows that the shipped compose files and route table send nothing out. It does not show that your own routes, environment or extra services are clean. Use it after changing the compose files or the appliance route table, and use the checks above for your own install.
+
+Run it from a checkout of the repository:
 
 ```bash
 npm run appliance:egress-check
