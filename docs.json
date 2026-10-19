@@ -30,6 +30,7 @@
               "quickstart",
               "deploy-on-railway",
               "self-hosting",
+              "nvidia-dgx-spark",
               "cli"
             ]
           },

@@ -243,6 +243,10 @@ docker compose -f docker-compose.yml -f docker-compose.fullapp.yml -f docker-com
 
 On a machine with an NVIDIA GPU and the NVIDIA Container Toolkit, add `-f docker-compose.appliance.gpu.yml`.
 
+<Tip>
+  On an NVIDIA DGX Spark, or any Linux host with an NVIDIA GPU, one script does all of this and checks the GPU, the disk and the image architectures on the way. See [NVIDIA DGX Spark](/nvidia-dgx-spark).
+</Tip>
+
 A one-shot job pulls the models the appliance table names into the `ollama_models` volume and skips any that are already there. After the first pull, or with a volume restored from elsewhere, it needs no network. The web, api and worker containers wait for it, and they are pointed at the appliance table, the compose Ollama and `DOCLING_STRICT=1`. It needs Docker Compose 2.24 or newer.
 
 Copy `infra/appliance/appliance.env.example` to `.env.local` at the root of the checkout, then fill in every secret it lists. The containers read that file, and the API and the worker refuse to start without the secrets.
