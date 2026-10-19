@@ -56,12 +56,19 @@ Your user has to be able to run `docker` without `sudo`. If not, run `sudo userm
 | Host | Compose version, the GPU visible inside a container, free disk |
 | Checkout | Uses the checkout it runs from, or clones one (`--dir`, `--ref`) |
 | Environment | Creates `.env.local` from `infra/appliance/appliance.env.example` and generates every empty secret |
-| Address | Sets `APP_URL` from `--host`, in `.env.local` and in `docker-compose.spark.local.yml` |
+| Encryption | Leaves message encryption off unless you pass `--encrypt` (see below) |
+| Address | Sets `APP_URL` from `--host`, in `.env.local` and in `.env`, which Compose reads |
 | Images | Pulls them, then warns about any image that is not built for the host's architecture |
 | Models | Pulls the models and runs one prompt to confirm Ollama runs it fully on the GPU |
 | Start | Starts the stack and waits for the web app to answer |
 
 You can run the script again at any time. It keeps the secrets already in `.env.local` and skips models already on the volume.
+
+### Message encryption is off by default
+
+The script does not generate an encryption key unless you ask for one. A test install then leaves nothing behind that you must keep, and thread messages are stored in plaintext. To encrypt them, pass `--encrypt`: the script generates `ENCRYPTION_MASTER_KEY` in `.env.local`.
+
+Once a key exists, the script keeps it on every later run, with or without the flag. Messages written with a key cannot be read without it.
 
 ### Options
 
@@ -71,6 +78,7 @@ You can run the script again at any time. It keeps the secrets already in `.env.
 | `--dir <path>` | `RAGEN_DIR` | `~/ragen` | Where to clone when not run from a checkout |
 | `--ref <ref>` | `RAGEN_REF` | `main` | The branch, tag or commit to clone |
 | `--version <tag>` | `RAGEN_VERSION` | `latest` | The image tag to run |
+| `--encrypt` | `RAGEN_ENCRYPT=1` | off | Generate a local key and encrypt thread messages |
 | `--cpu` | | | Skip the GPU check and run the models on the CPU |
 
 ## Manage the install
@@ -97,7 +105,7 @@ To swap a model, see [Local models](/configuration/open-models). Change the embe
 
 ## Before you hand it over
 
-- **Back up `ENCRYPTION_MASTER_KEY`** from `.env.local` together with your database backups. Thread messages are encrypted with it, and without it they cannot be read.
+- **Turn on encryption for production.** Run the script again with `--encrypt`. Then back up `ENCRYPTION_MASTER_KEY` from `.env.local` together with your database backups. Without it the encrypted messages cannot be read.
 - **Put a reverse proxy with TLS in front of port 3000.** The web app (3000), the public API (3001) and the platform admin panel (3200) are reachable from the network. Close 3001 and 3200 with a firewall unless you need them from outside. The databases and Ollama listen on `127.0.0.1` only.
 - **Reranking is off.** The local stack has no reranker yet, so retrieval quality is a little below the cloud setup.
 - **Prove that nothing leaves the machine.** With Node.js installed, run `npm run appliance:egress-check -- --full-models` in the checkout. It runs the stack on a network with no route out and names any container that tries to reach the internet.

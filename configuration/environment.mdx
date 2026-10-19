@@ -191,7 +191,7 @@ itself, and an external gateway is a route rather than a setting.
 | Variable | Required | Description |
 |---|---|---|
 | `BETTER_AUTH_SECRET` | **Required** | Secret key for Better Auth session signing. Generate with `openssl rand -hex 32`. |
-| `APP_URL` | **Required** | Public URL of this installation (e.g. `https://app.example.com`). Used in all outbound email links, as Better Auth's base URL and as the browser's origin. Set it on the web app, the admin panel (its own URL) and the MCP server (the web app's URL). Formerly `BETTER_AUTH_URL`, which is no longer read: an install that still sets only the old name is told `BETTER_AUTH_URL was renamed to APP_URL` at boot. Rename it, keeping the same value. |
+| `APP_URL` | **Required** | Public URL of this installation (e.g. `https://app.example.com`). Used in all outbound email links, as Better Auth's base URL and as the browser's origin. Set it on the web app, the admin panel (its own URL) and the MCP server (the web app's URL). Formerly `BETTER_AUTH_URL`, which is no longer read: an install that still sets only the old name is told `BETTER_AUTH_URL was renamed to APP_URL` at boot. Rename it, keeping the same value. In the Docker Compose stack, set it in `.env` next to the compose files (or in the shell): the web container reads it from there, not from `.env.local`. |
 | `SESSION_AUTH_SECRET` | **Required** | Shared secret for issuing short-lived session tokens between the web app and the API service. Must be set to the same value in both services. |
 | `SECRET_KEY` | **Required** | Key used to encrypt organisation API keys stored in the database. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
 
