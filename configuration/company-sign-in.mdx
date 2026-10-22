@@ -30,6 +30,16 @@ Set these on the web app:
 
 <Tabs>
   <Tab title="Microsoft Entra ID">
+    In the [Microsoft Entra admin center](https://entra.microsoft.com), go to **App registrations → New registration**:
+
+    1. **Supported account types:** *Accounts in this organizational directory only* (single tenant).
+    2. **Redirect URI:** platform **Web** (not *Single-page application*), value `<APP_URL>/api/auth/callback/oidc`. Entra accepts `http` only for `localhost`. Add one URI per environment you sign in to.
+    3. From **Overview**, copy the **Application (client) ID** and the **Directory (tenant) ID**.
+    4. Under **Certificates & secrets → New client secret**, copy the **Value** column. The **Secret ID** next to it is a GUID that looks like a client ID, and it does not work as either one. The value is shown only once.
+    5. Under **API permissions**, add the delegated Microsoft Graph permissions `openid`, `email` and `profile`. Each person consents on their first sign-in. To skip that prompt for everyone, grant admin consent.
+
+    Ragen needs an `email` claim in the ID token, and Entra leaves it out when the account has no email address. For a work account, that address is usually the **Email** field (the `mail` attribute), which accounts with a Microsoft 365 mailbox have. For an account without one, fill in **Email** on the user's properties. If the claim is still missing, add `email` as an optional ID token claim under **Token configuration**. Without the claim, Ragen has no address to check and refuses the sign-in.
+
     ```bash
     OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
     OIDC_CLIENT_ID=<application (client) id>
@@ -75,6 +85,9 @@ Without `OIDC_JOIN_ORGANIZATION`, company sign-in works like the other sign-up m
 | What you see | Why |
 |---|---|
 | No **Sign in with …** button | The configuration is incomplete. The setup checklist on the sign-in page names what is missing. |
+| Entra shows `AADSTS50011` (redirect URI mismatch) | The redirect URI registered in Entra differs from `<APP_URL>/api/auth/callback/oidc`. Check the scheme, the host (`www` or not), the port, and that the platform is **Web**. |
+| Entra shows `AADSTS700016` (application not found) | `OIDC_CLIENT_ID` is not the application's client ID, or `OIDC_ISSUER` names a different tenant from the one the application is registered in. Often the client secret's **Secret ID** was pasted into `OIDC_CLIENT_ID`. |
+| Sign-in fails after Entra redirects back, with `invalid_client` or `AADSTS7000215` in the web app's log | `OIDC_CLIENT_SECRET` holds the **Secret ID** rather than the secret's **Value**, or the secret has expired. |
 | The button is there, but sign-in fails at once | Ragen reads the issuer's discovery document when the web app starts. If the issuer was unreachable at that moment, Ragen skips the provider until the next restart. Check the web app's log, then restart it. A self-hosted issuer such as Keycloak must start before Ragen. |
 | "Company sign-in failed" after signing in at the provider | The address is outside the allowed domains. With Google, the account may also be a personal one, not part of your Workspace. |
 | The user signs in but lands in an empty organization of their own, or is refused at a closed install | `OIDC_JOIN_ORGANIZATION` admits only addresses the issuer reported as verified. With Entra ID, set `OIDC_TRUST_EMAIL=true`. Without `OIDC_JOIN_ORGANIZATION`, company sign-in follows the ordinary sign-up rules. |
