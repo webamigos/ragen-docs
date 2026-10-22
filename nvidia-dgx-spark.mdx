@@ -1,0 +1,129 @@
+---
+title: 'Install Ragen AI on an NVIDIA DGX Spark with Local Models'
+sidebarTitle: 'NVIDIA DGX Spark'
+description: 'Run Ragen and its models on one NVIDIA DGX Spark with a single script: no cloud model calls, no build on the machine.'
+---
+
+An NVIDIA DGX Spark can run all of Ragen on one machine: the app, the databases, document parsing and the language models. The models are served by a local Ollama, so no question, document or embedding leaves the machine.
+
+One script does the whole install. It uses the published container images, which are built for `linux/arm64` as well as `linux/amd64`, so nothing is compiled on the Spark. The same script works on any Linux host with an NVIDIA GPU.
+
+<Warning>
+  Ragen has not been benchmarked on DGX Spark hardware yet. The default models fit comfortably in the Spark's 128 GB of unified memory. Measure answer speed with your own documents before you promise a number of concurrent users.
+</Warning>
+
+## Prerequisites
+
+DGX OS ships with most of what you need:
+
+- **Docker with Compose 2.24 or newer.**
+- **The NVIDIA Container Toolkit**, so containers can see the GPU.
+- **About 60 GB of free disk** where Docker keeps its data. The models take about 20 GB, and the images take most of the rest.
+- **Internet access for the first start**, to pull the images and the models. After that the stack runs without a network.
+- `git`, `curl` and `openssl`.
+
+Your user has to be able to run `docker` without `sudo`. If not, run `sudo usermod -aG docker $USER` and log in again.
+
+## Install
+
+<Steps>
+  <Step title="Run the script">
+    Pass the address your users will open in the browser: the Spark's IP address or hostname.
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/webamigos/RagenAI/main/infra/appliance/install-spark.sh \
+      | bash -s -- --host 192.168.1.50
+    ```
+
+    The script clones the repository to `~/ragen`. If you already have a checkout, run it from there instead:
+
+    ```bash
+    bash infra/appliance/install-spark.sh --host 192.168.1.50
+    ```
+  </Step>
+  <Step title="Wait for the models">
+    The first start pulls about 20 GB of models. The script shows the progress and waits until it finishes. Later starts find the models on the volume and pull nothing.
+  </Step>
+  <Step title="Create the first account">
+    Open the address the script prints, for example `http://192.168.1.50:3000`. The first account you create becomes the platform administrator. Upload a document under **Knowledge** and ask a question about it.
+
+    <Warning>
+      Anyone who reaches port 3000 first can create that account. Until it exists, allow port 3000 only from your own machine, for example with a firewall rule on the Spark.
+    </Warning>
+  </Step>
+</Steps>
+
+## What the script does
+
+| Step | What it checks or sets |
+|---|---|
+| Host | Compose version, the GPU visible inside a container, free disk (35 GB for a first install, 10 GB for a re-run) |
+| Checkout | Uses the checkout it runs from, or clones one (`--dir`, `--ref`) |
+| Environment | Creates `.env.local` from `infra/appliance/appliance.env.example` and `apps/admin/.env.local` for the admin panel, and generates every empty secret |
+| Encryption | Leaves message encryption off unless you pass `--encrypt` (see below) |
+| Address | Sets `APP_URL` from `--host` in `.env.local`, which the containers read. The admin panel gets the same host on port 3200 |
+| Images | Pulls them, then warns about any image that is not built for the host's architecture |
+| Models | Pulls the models and runs one prompt to confirm Ollama runs it fully on the GPU |
+| Start | Starts the stack and waits for the web app to answer |
+
+You can run the script again at any time. It keeps the secrets already in `.env.local`, skips models already on the volume, and keeps the address already set when you leave out `--host`.
+
+### Message encryption is off by default
+
+The script does not generate an encryption key unless you ask for one. A test install then leaves nothing behind that you must keep, and thread messages are stored in plaintext. To encrypt them, pass `--encrypt`: the script generates `ENCRYPTION_MASTER_KEY` in `.env.local`. Messages written before you turn it on are not encrypted afterwards.
+
+Once a key exists, the script keeps it on every later run, with or without the flag. Messages written with a key cannot be read without it.
+
+### Options
+
+| Option | Environment variable | Default | Effect |
+|---|---|---|---|
+| `--host <address>` | `RAGEN_HOST` | `localhost` | The address users open in the browser |
+| `--dir <path>` | `RAGEN_DIR` | `~/ragen` | Where to clone when not run from a checkout |
+| `--ref <ref>` | `RAGEN_REF` | `main` | The branch, tag or commit to clone |
+| `--version <tag>` | `RAGEN_VERSION` | `latest` | The image tag to run |
+| `--encrypt` | `RAGEN_ENCRYPT=1` | off | Generate a local key and encrypt thread messages |
+| `--cpu` | | | Skip the GPU check and run the models on the CPU |
+
+## Manage the install
+
+The script writes `COMPOSE_FILE` into `.env` in the checkout, so plain Compose commands address the whole stack:
+
+```bash
+cd ~/ragen
+docker compose ps        # what is running
+docker compose logs -f   # follow the logs
+docker compose down      # stop everything; the data stays on the volumes
+```
+
+## The models
+
+| Model | Used for |
+|---|---|
+| Bielik 11B v2.3 Instruct (Q4) | Answers |
+| Qwen 2.5 7B Instruct | Rephrasing, summaries, Brain extraction, the guardrail judge |
+| Gemma 3 12B | Images and document attachments |
+| BGE-M3 | Embeddings, 1024 dimensions |
+
+To swap a model, see [Local models](/configuration/open-models). Change the embedding model before you upload the first document, because it fixes the shape of the vector index.
+
+## Before you hand it over
+
+- **Turn on encryption for production.** Run the script again with `--encrypt`. It encrypts messages written from then on; messages written before stay in plaintext. Delete the test conversations before real users start, or install fresh with `--encrypt` from the start. Then back up `ENCRYPTION_MASTER_KEY` from `.env.local` together with your database backups. Without it the encrypted messages cannot be read.
+- **Put a reverse proxy with TLS in front of port 3000.** The web app (3000), the public API (3001) and the platform admin panel (3200) are reachable from the network. Close 3001 and 3200 with a firewall unless you need them from outside. The databases and Ollama listen on `127.0.0.1` only.
+- **Reranking is off.** The local stack has no reranker yet, so retrieval quality is a little below the cloud setup.
+- **Prove that nothing leaves the machine.** With Node.js installed, run `npm run appliance:egress-check -- --full-models` in the checkout. It runs the stack on a network with no route out and names any container that tries to reach the internet.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The script says Ollama is not fully on the GPU">
+    Run `docker compose logs ollama` and look for the line where Ollama detects CUDA. If it found no GPU, the pinned `ollama/ollama` image may be too old for the GPU. Raise the tag in both the `ollama` and `ollama-models` services of `docker-compose.appliance.yml`, then run the script again.
+  </Accordion>
+  <Accordion title="An image is reported as amd64 on an arm64 host">
+    Docker does not refuse an image built for another architecture. It runs it under emulation, which works but is much slower. Check whether the image's publisher has an arm64 build, and pin that tag.
+  </Accordion>
+  <Accordion title="The web app does not answer">
+    Run `docker compose ps -a`. If `migrate` exited with an error, read `docker compose logs migrate`. If `api` or `worker` keep restarting, a secret in `.env.local` is probably empty.
+  </Accordion>
+</AccordionGroup>
