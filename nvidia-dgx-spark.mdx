@@ -46,6 +46,10 @@ Your user has to be able to run `docker` without `sudo`. If not, run `sudo userm
   </Step>
   <Step title="Create the first account">
     Open the address the script prints, for example `http://192.168.1.50:3000`. The first account you create becomes the platform administrator. Upload a document under **Knowledge** and ask a question about it.
+
+    <Warning>
+      Anyone who reaches port 3000 first can create that account. Until it exists, allow port 3000 only from your own machine, for example with a firewall rule on the Spark.
+    </Warning>
   </Step>
 </Steps>
 
@@ -57,7 +61,7 @@ Your user has to be able to run `docker` without `sudo`. If not, run `sudo userm
 | Checkout | Uses the checkout it runs from, or clones one (`--dir`, `--ref`) |
 | Environment | Creates `.env.local` from `infra/appliance/appliance.env.example` and `apps/admin/.env.local` for the admin panel, and generates every empty secret |
 | Encryption | Leaves message encryption off unless you pass `--encrypt` (see below) |
-| Address | Sets `APP_URL` from `--host`, in `.env.local` and in `.env`, which Compose reads. The admin panel gets the same host on port 3200 |
+| Address | Sets `APP_URL` from `--host` in `.env.local`, which the containers read. The admin panel gets the same host on port 3200 |
 | Images | Pulls them, then warns about any image that is not built for the host's architecture |
 | Models | Pulls the models and runs one prompt to confirm Ollama runs it fully on the GPU |
 | Start | Starts the stack and waits for the web app to answer |
@@ -66,7 +70,7 @@ You can run the script again at any time. It keeps the secrets already in `.env.
 
 ### Message encryption is off by default
 
-The script does not generate an encryption key unless you ask for one. A test install then leaves nothing behind that you must keep, and thread messages are stored in plaintext. To encrypt them, pass `--encrypt`: the script generates `ENCRYPTION_MASTER_KEY` in `.env.local`.
+The script does not generate an encryption key unless you ask for one. A test install then leaves nothing behind that you must keep, and thread messages are stored in plaintext. To encrypt them, pass `--encrypt`: the script generates `ENCRYPTION_MASTER_KEY` in `.env.local`. Messages written before you turn it on are not encrypted afterwards.
 
 Once a key exists, the script keeps it on every later run, with or without the flag. Messages written with a key cannot be read without it.
 
@@ -105,7 +109,7 @@ To swap a model, see [Local models](/configuration/open-models). Change the embe
 
 ## Before you hand it over
 
-- **Turn on encryption for production.** Run the script again with `--encrypt`. Then back up `ENCRYPTION_MASTER_KEY` from `.env.local` together with your database backups. Without it the encrypted messages cannot be read.
+- **Turn on encryption for production.** Run the script again with `--encrypt`. It encrypts messages written from then on; messages written before stay in plaintext. Delete the test conversations before real users start, or install fresh with `--encrypt` from the start. Then back up `ENCRYPTION_MASTER_KEY` from `.env.local` together with your database backups. Without it the encrypted messages cannot be read.
 - **Put a reverse proxy with TLS in front of port 3000.** The web app (3000), the public API (3001) and the platform admin panel (3200) are reachable from the network. Close 3001 and 3200 with a firewall unless you need them from outside. The databases and Ollama listen on `127.0.0.1` only.
 - **Reranking is off.** The local stack has no reranker yet, so retrieval quality is a little below the cloud setup.
 - **Prove that nothing leaves the machine.** With Node.js installed, run `npm run appliance:egress-check -- --full-models` in the checkout. It runs the stack on a network with no route out and names any container that tries to reach the internet.
