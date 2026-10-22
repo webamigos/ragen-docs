@@ -89,7 +89,26 @@ Without `OIDC_JOIN_ORGANIZATION`, company sign-in works like the other sign-up m
 | Entra shows `AADSTS700016` (application not found) | `OIDC_CLIENT_ID` is not the application's client ID, or `OIDC_ISSUER` names a different tenant from the one the application is registered in. Often the client secret's **Secret ID** was pasted into `OIDC_CLIENT_ID`. |
 | Sign-in fails after Entra redirects back, with `invalid_client` or `AADSTS7000215` in the web app's log | `OIDC_CLIENT_SECRET` holds the **Secret ID** rather than the secret's **Value**, or the secret has expired. |
 | The button is there, but sign-in fails at once | Ragen reads the issuer's discovery document when the web app starts. If the issuer was unreachable at that moment, Ragen skips the provider until the next restart. Check the web app's log, then restart it. A self-hosted issuer such as Keycloak must start before Ragen. |
-| "Company sign-in failed" after signing in at the provider | The address is outside the allowed domains. With Google, the account may also be a personal one, not part of your Workspace. |
+| A message under the **Sign in with …** button after signing in at the provider | The sign-in was refused. The message says which rule refused it; see [When sign-in is refused](#when-sign-in-is-refused). |
 | The user signs in but lands in an empty organization of their own, or is refused at a closed install | `OIDC_JOIN_ORGANIZATION` admits only addresses the issuer reported as verified. With Entra ID, set `OIDC_TRUST_EMAIL=true`. Without `OIDC_JOIN_ORGANIZATION`, company sign-in follows the ordinary sign-up rules. |
+
+## When sign-in is refused
+
+A refused company sign-in sends the person back to the sign-in page, with a message under the **Sign in with …** button. Ragen creates no account and no membership on a refusal. The address bar ends in `?error=<code>`. Ask the person for that code or the message, then look it up here.
+
+| Message (English) | `error` code | Cause and fix |
+|---|---|---|
+| "Your company account does not have access to this installation yet. Ask an administrator for an invitation." | `oidc_join_organization_unset` | Registration is closed and `OIDC_JOIN_ORGANIZATION` is not set, so company sign-in cannot create accounts. Set `OIDC_JOIN_ORGANIZATION`, open registration, or invite the person. |
+| The same message | `registration_disabled` | Registration is closed and nothing else admitted the sign-up. Open registration or invite the person. |
+| "You cannot sign in here with this account. Use an account in your company's domain." | `oidc_domain_not_allowed` | The address is not in `OIDC_ALLOWED_DOMAINS`. Add the domain if it should be allowed. |
+| "Sign in with your company's Google Workspace account, not a personal one." | `oidc_hosted_domain_mismatch` | Google only: the account is not managed by a Workspace in `OIDC_ALLOWED_DOMAINS`. It has no `hd` claim, or a different one. A personal Google account on a company address looks like this. |
+| "Company sign-in is misconfigured. Contact an administrator." | `oidc_join_organization_not_found` | `OIDC_JOIN_ORGANIZATION` names an organization that does not exist. Check the id or slug. |
+| "Your identity provider did not confirm your email address, so no account was created. Ask an administrator." | `oidc_email_not_verified` | Registration is closed and the issuer did not report the address as verified. With Entra ID, set `OIDC_TRUST_EMAIL=true`. |
+| "Your identity provider did not send an email address. Ask an administrator." | `email_not_found` | The ID token and userinfo carry no `email`. Make sure the `email` scope is granted and the user has an address in the directory. |
+| "An account with this address already exists, but your identity provider did not confirm the address, so the two were not linked. Sign in with your password." | `account_not_linked` | A password account already uses the address, and the issuer did not report the address as verified. With Entra ID, set `OIDC_TRUST_EMAIL=true`. |
+| "Company sign-in was cancelled." | `access_denied` | The person declined consent, or the identity provider (or a policy its admin set) denied the request. If the person did not cancel, check the provider's sign-in logs. Closing the provider's page sends nothing back to Ragen, so it shows no message. |
+| "Company sign-in failed. Use an account in your organization's domain, or ask an administrator." | any other | A provider or protocol error, such as an expired code or a state mismatch. The web app's log has the detail. |
+
+The messages are translated into every language the interface supports.
 
 SAML, SCIM directory sync, and MFA are not built yet. See the [roadmap](/roadmap).
