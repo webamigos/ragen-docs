@@ -53,16 +53,16 @@ Your user has to be able to run `docker` without `sudo`. If not, run `sudo userm
 
 | Step | What it checks or sets |
 |---|---|
-| Host | Compose version, the GPU visible inside a container, free disk |
+| Host | Compose version, the GPU visible inside a container, free disk (35 GB for a first install, 10 GB for a re-run) |
 | Checkout | Uses the checkout it runs from, or clones one (`--dir`, `--ref`) |
-| Environment | Creates `.env.local` from `infra/appliance/appliance.env.example` and generates every empty secret |
+| Environment | Creates `.env.local` from `infra/appliance/appliance.env.example` and `apps/admin/.env.local` for the admin panel, and generates every empty secret |
 | Encryption | Leaves message encryption off unless you pass `--encrypt` (see below) |
-| Address | Sets `APP_URL` from `--host`, in `.env.local` and in `.env`, which Compose reads |
+| Address | Sets `APP_URL` from `--host`, in `.env.local` and in `.env`, which Compose reads. The admin panel gets the same host on port 3200 |
 | Images | Pulls them, then warns about any image that is not built for the host's architecture |
 | Models | Pulls the models and runs one prompt to confirm Ollama runs it fully on the GPU |
 | Start | Starts the stack and waits for the web app to answer |
 
-You can run the script again at any time. It keeps the secrets already in `.env.local` and skips models already on the volume.
+You can run the script again at any time. It keeps the secrets already in `.env.local`, skips models already on the volume, and keeps the address already set when you leave out `--host`.
 
 ### Message encryption is off by default
 
