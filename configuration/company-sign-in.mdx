@@ -93,7 +93,7 @@ A refused company sign-in sends the person back to the sign-in page, with a mess
 | "Your identity provider did not confirm your email address, so no account was created. Ask an administrator." | `oidc_email_not_verified` | Registration is closed and the issuer did not report the address as verified. With Entra ID, set `OIDC_TRUST_EMAIL=true`. |
 | "Your identity provider did not send an email address. Ask an administrator." | `email_not_found` | The ID token and userinfo carry no `email`. Make sure the `email` scope is granted and the user has an address in the directory. |
 | "An account with this address already exists, but your identity provider did not confirm the address, so the two were not linked. Sign in with your password." | `account_not_linked` | A password account already uses the address, and the issuer did not report the address as verified. With Entra ID, set `OIDC_TRUST_EMAIL=true`. |
-| "Company sign-in was cancelled." | `access_denied` | The person declined consent or closed the provider's page. |
+| "Company sign-in was cancelled." | `access_denied` | The person declined consent, or the identity provider (or a policy its admin set) denied the request. If the person did not cancel, check the provider's sign-in logs. Closing the provider's page sends nothing back to Ragen, so it shows no message. |
 | "Company sign-in failed. Use an account in your organization's domain, or ask an administrator." | any other | A provider or protocol error, such as an expired code or a state mismatch. The web app's log has the detail. |
 
 The messages are translated into every language the interface supports.
